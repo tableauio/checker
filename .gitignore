@@ -13,3 +13,8 @@
 
 # Dependency directories (remove the comment below to include it)
 # vendor/
+
+cmd/protoc-gen-go-tableau-checker/protoc-gen-go-tableau-checker
+protoconf
+third_party/_submodules
+./checker
