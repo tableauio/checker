@@ -3,6 +3,7 @@ package checker
 import (
 	"fmt"
 
+	"github.com/pkg/errors"
 	"github.com/tableauio/checker/hub"
 	"github.com/tableauio/checker/protoconf/tableau"
 )
@@ -24,11 +25,11 @@ func (x *ItemConf) Check() error {
 
 	conf := hub.GetHub().GetActivityConf()
 	if conf == nil {
-		panic("ActivityConf is nil")
+		return errors.Errorf("ActivityConf is nil")
 	}
 	chapter, err := conf.Get3(100001, 1, 2)
 	if err != nil {
-		panic(err)
+		return errors.WithMessagef(err, "failed to get chapter: Get3(100001, 1, 2)")
 	}
 	fmt.Printf("ActivityConf: %v\n", chapter)
 

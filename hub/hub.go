@@ -2,6 +2,7 @@ package hub
 
 import (
 	"fmt"
+	"os"
 	"sync"
 
 	"github.com/tableauio/checker/protoconf/tableau"
@@ -52,7 +53,9 @@ func (h *Hub) Load(dir string, filter tableau.Filter, format format.Format) erro
 	return nil
 }
 
-func (h *Hub) Check(breakFailedCount int) {
+const breakFailedCount = 1
+
+func (h *Hub) Check() {
 	failedCount := 0
 	for name, checker := range h.checkerMap {
 		if err := checker.Check(); err != nil {
@@ -63,6 +66,7 @@ func (h *Hub) Check(breakFailedCount int) {
 			break
 		}
 	}
+	os.Exit(failedCount)
 }
 
 func Register(checker Checker) {

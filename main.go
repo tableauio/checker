@@ -1,6 +1,8 @@
 package main
 
 import (
+	"fmt"
+
 	"github.com/tableauio/checker/hub"
 	_ "github.com/tableauio/checker/hub/checker"
 	"github.com/tableauio/tableau/format"
@@ -9,7 +11,7 @@ import (
 func main() {
 	err := hub.GetHub().Load("./testdata/", nil, format.JSON)
 	if err != nil {
-		panic(err)
+		fmt.Printf("failed to load: %+v\n", err)
 	}
-	hub.GetHub().Check(1)
+	hub.GetHub().Check()
 }
