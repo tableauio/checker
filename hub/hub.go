@@ -5,7 +5,7 @@ import (
 	"sync"
 
 	"github.com/tableauio/checker/protoconf/tableau"
-	"github.com/tableauio/tableau/options"
+	"github.com/tableauio/tableau/format"
 )
 
 type Checker interface {
@@ -39,7 +39,7 @@ func (h *Hub) Register(checker Checker) {
 	h.checkerMap[checker.Messager().Name()] = checker
 }
 
-func (h *Hub) Load(dir string, filter tableau.Filter, format options.Format) error {
+func (h *Hub) Load(dir string, filter tableau.Filter, format format.Format) error {
 	configMap := tableau.ConfigMap{}
 	for name, checker := range h.checkerMap {
 		if err := checker.Messager().Load(dir, format); err != nil {
