@@ -15,6 +15,7 @@
 # vendor/
 
 cmd/protoc-gen-go-tableau-checker/protoc-gen-go-tableau-checker
-protoconf/
+test/protoconf/
 third_party/_submodules
-checker
+test/test
+cmd/protoc-gen-go-tableau-checker/protoc-gen-go-tableau-checker

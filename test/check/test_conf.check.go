@@ -1,14 +1,13 @@
-package checker
+package check
 
 import (
 	"fmt"
 
-	"github.com/tableauio/checker/hub"
-	"github.com/tableauio/checker/protoconf/tableau"
+	"github.com/tableauio/checker/test/protoconf/tableau"
 )
 
 func init() {
-	hub.Register(&ActivityConf{})
+	register(&ActivityConf{})
 }
 
 type ActivityConf struct {

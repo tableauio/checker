@@ -1,15 +1,14 @@
-package checker
+package check
 
 import (
 	"fmt"
 
 	"github.com/pkg/errors"
-	"github.com/tableauio/checker/hub"
-	"github.com/tableauio/checker/protoconf/tableau"
+	"github.com/tableauio/checker/test/protoconf/tableau"
 )
 
 func init() {
-	hub.Register(&ItemConf{})
+	register(&ItemConf{})
 }
 
 type ItemConf struct {
@@ -23,7 +22,7 @@ func (x *ItemConf) Messager() tableau.Messager {
 func (x *ItemConf) Check() error {
 	fmt.Println("ItemConf: check")
 
-	conf := hub.GetHub().GetActivityConf()
+	conf := GetHub().GetActivityConf()
 	if conf == nil {
 		return errors.Errorf("ActivityConf is nil")
 	}

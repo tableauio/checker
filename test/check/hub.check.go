@@ -1,11 +1,11 @@
-package hub
+package check
 
 import (
 	"fmt"
 	"os"
 	"sync"
 
-	"github.com/tableauio/checker/protoconf/tableau"
+	"github.com/tableauio/checker/test/protoconf/tableau"
 	"github.com/tableauio/tableau/format"
 )
 
@@ -43,13 +43,15 @@ func (h *Hub) Register(checker Checker) {
 func (h *Hub) Load(dir string, filter tableau.Filter, format format.Format) error {
 	configMap := tableau.ConfigMap{}
 	for name, checker := range h.checkerMap {
+		fmt.Println("=== LOAD  " + name)
 		if err := checker.Messager().Load(dir, format); err != nil {
 			return fmt.Errorf("failed to load %v: %v", name, err)
 		}
-		fmt.Println("load successfully: " + name)
+		fmt.Println("--- DONE: " + name)
 		configMap[name] = checker.Messager()
 	}
 	h.SetConfigMap(configMap)
+	fmt.Println()
 	return nil
 }
 
@@ -58,9 +60,13 @@ const breakFailedCount = 1
 func (h *Hub) Check() {
 	failedCount := 0
 	for name, checker := range h.checkerMap {
+		fmt.Printf("=== RUN   %v\n", name)
 		if err := checker.Check(); err != nil {
-			fmt.Printf("check failed: %v, %+v", name, err)
+			fmt.Printf("--- FAIL: %v\n", name)
+			fmt.Printf("    %+v\n", err)
 			failedCount++
+		} else {
+			fmt.Printf("--- PASS: %v\n", name)
 		}
 		if failedCount != 0 && failedCount >= breakFailedCount {
 			break
@@ -69,6 +75,7 @@ func (h *Hub) Check() {
 	os.Exit(failedCount)
 }
 
-func Register(checker Checker) {
+// Syntatic sugar for Hub's register
+func register(checker Checker) {
 	GetHub().Register(checker)
 }

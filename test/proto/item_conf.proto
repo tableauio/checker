@@ -1,6 +1,6 @@
 syntax = "proto3";
 package protoconf;
-option go_package = "github.com/tableauio/checker/protoconf";
+option go_package = "github.com/tableauio/checker/test/protoconf";
 
 import "google/protobuf/duration.proto";
 import "google/protobuf/timestamp.proto";
