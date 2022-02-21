@@ -4,6 +4,7 @@ import (
 	"fmt"
 
 	"github.com/tableauio/checker/test/protoconf/check"
+	// "github.com/tableauio/checker/test/check"
 	"github.com/tableauio/tableau/format"
 )
 

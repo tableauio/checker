@@ -25,7 +25,7 @@ var loaderImportPath protogen.GoImportPath
 func generateMessager(gen *protogen.Plugin, file *protogen.File) {
 	loaderImportPath = protogen.GoImportPath(string(file.GoImportPath) + "/" + *loaderPkg)
 
-	filename := filepath.Join(*pkg, file.GeneratedFilenamePrefix+"."+pcExt+".go")
+	filename := filepath.Join(file.GeneratedFilenamePrefix+"."+checkExt+".go")
 	g := gen.NewGeneratedFile(filename, "")
 	generateFileHeader(gen, file, g)
 	g.P()
@@ -67,12 +67,6 @@ func genMessage(gen *protogen.Plugin, file *protogen.File, g *protogen.Generated
 	// messager definition
 	g.P("type ", messagerName, " struct {")
 	g.P(loaderImportPath.Ident(messagerName))
-	g.P("}")
-	g.P()
-
-	// messager methods
-	g.P("func (x *", messagerName, ") Messager() ", loaderImportPath.Ident("Messager"), " {")
-	g.P("return &x.", messagerName)
 	g.P("}")
 	g.P()
 

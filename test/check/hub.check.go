@@ -9,16 +9,9 @@ import (
 	"github.com/tableauio/tableau/format"
 )
 
-type Checker interface {
-	Check() error
-	Messager() tableau.Messager
-}
-
-type CheckerMap = map[string]Checker
-
 type Hub struct {
 	*tableau.Hub
-	checkerMap CheckerMap
+	checkerMap tableau.MessagerMap
 }
 
 var hubSingleton *Hub
@@ -30,27 +23,31 @@ func GetHub() *Hub {
 		// new instance
 		hubSingleton = &Hub{
 			Hub:        tableau.NewHub(),
-			checkerMap: CheckerMap{},
+			checkerMap: tableau.MessagerMap{},
 		}
 	})
 	return hubSingleton
 }
 
-func (h *Hub) Register(checker Checker) {
-	h.checkerMap[checker.Messager().Name()] = checker
+func (h *Hub) Register(msger tableau.Messager) error {
+	h.checkerMap[msger.Messager().Name()] = msger
+	return nil
 }
 
 func (h *Hub) Load(dir string, filter tableau.Filter, format format.Format) error {
-	configMap := tableau.ConfigMap{}
-	for name, checker := range h.checkerMap {
+	configMap := h.NewMessagerMap(filter)
+	for name, msger := range h.checkerMap {
+		// replace with custom checker
+		configMap[name] = msger.Messager()
+	}
+	for name, msger := range configMap {
 		fmt.Println("=== LOAD  " + name)
-		if err := checker.Messager().Load(dir, format); err != nil {
+		if err := msger.Load(dir, format); err != nil {
 			return fmt.Errorf("failed to load %v: %v", name, err)
 		}
 		fmt.Println("--- DONE: " + name)
-		configMap[name] = checker.Messager()
 	}
-	h.SetConfigMap(configMap)
+	h.SetMessagerMap(configMap)
 	fmt.Println()
 	return nil
 }
@@ -76,6 +73,6 @@ func (h *Hub) Check() {
 }
 
 // Syntatic sugar for Hub's register
-func register(checker Checker) {
-	GetHub().Register(checker)
+func register(msger tableau.Messager) {
+	GetHub().Register(msger)
 }
