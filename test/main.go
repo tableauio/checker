@@ -3,8 +3,8 @@ package main
 import (
 	"fmt"
 
-	"github.com/tableauio/checker/test/protoconf/check"
-	// "github.com/tableauio/checker/test/check"
+	// "github.com/tableauio/checker/test/protoconf/check"
+	check "github.com/tableauio/checker/test/devcheck"
 	"github.com/tableauio/tableau/format"
 )
 

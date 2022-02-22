@@ -14,7 +14,7 @@ PROTOCONF_OUT="./test/protoconf"
 LOADER_PLUGIN_DIR="./third_party/_submodules/loader/cmd/protoc-gen-go-tableau-loader"
 LOADER_OUT="${PROTOCONF_OUT}/tableau"
 CHECKER_PLUGIN_DIR="cmd/protoc-gen-go-tableau-checker"
-CHECKER_OUT="${PROTOCONF_OUT}/check"
+CHECKER_OUT="./test/check"
 
 export PATH="$PATH:$LOADER_PLUGIN_DIR:$CHECKER_PLUGIN_DIR"
 
@@ -23,7 +23,7 @@ cd $LOADER_PLUGIN_DIR && go build && cd -
 cd $CHECKER_PLUGIN_DIR && go build && cd -
 
 # remove old generated files
-rm -rfv "$PROTOCONF_OUT" "$LOADER_OUT" "$CHECKER_OUT"
+rm -rfv "$PROTOCONF_OUT" "$LOADER_OUT"
 mkdir -p "$PROTOCONF_OUT" "$LOADER_OUT" "$CHECKER_OUT"
 
 # generate protoconf files
