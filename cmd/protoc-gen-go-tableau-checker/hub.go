@@ -10,7 +10,7 @@ import (
 func generateHub(gen *protogen.Plugin) {
 	filename := filepath.Join("hub." + checkExt + ".go")
 	g := gen.NewGeneratedFile(filename, "")
-	generateCommonHeader(gen, g)
+	generateCommonHeader(gen, g, true)
 	g.P()
 	g.P("package ", *pkg)
 	g.P("import (")
@@ -56,7 +56,9 @@ func (h *Hub) Load(dir string, filter tableau.Filter, format format.Format) erro
 configMap := h.NewMessagerMap(filter)
 for name, msger := range h.checkerMap {
 	// replace with custom checker
-	configMap[name] = msger.Messager()
+	if filter == nil || filter.Filter(name) {
+		configMap[name] = msger.Messager()
+	}
 }
 for name, msger := range configMap {
 	fmt.Println("=== LOAD  " + name)

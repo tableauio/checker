@@ -13,11 +13,13 @@ const version = "0.1.0"
 
 var pkg *string
 var loaderPkg *string
+var out *string
 
 func main() {
 	var flags flag.FlagSet
 	pkg = flags.String("pkg", "check", "tableau checker package name")
 	loaderPkg = flags.String("loader-pkg", "tableau", "tableau loader package name")
+	out = flags.String("out", "", "tableau checker output directory")
 	flag.Parse()
 
 	protogen.Options{
