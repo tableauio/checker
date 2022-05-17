@@ -2,6 +2,7 @@ package main
 
 import (
 	"fmt"
+	"os"
 
 	"github.com/tableauio/checker/test/check"
 	// check "github.com/tableauio/checker/test/devcheck"
@@ -9,9 +10,10 @@ import (
 )
 
 func main() {
-	err := check.GetHub().Load("./testdata/", nil, format.JSON)
-	if err != nil {
+	errs := check.GetHub().Run("./testdata/", nil, format.JSON)
+	for _, err := range errs {
 		fmt.Printf("failed to load: %+v\n", err)
 	}
-	check.GetHub().Check()
+	failedCount := len(errs)
+	os.Exit(failedCount)
 }

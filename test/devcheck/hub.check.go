@@ -2,16 +2,18 @@ package devcheck
 
 import (
 	"fmt"
-	"os"
 	"sync"
 
+	"github.com/pkg/errors"
 	"github.com/tableauio/checker/test/protoconf/tableau"
 	"github.com/tableauio/tableau/format"
+	"github.com/tableauio/tableau/load"
 )
 
 type Hub struct {
 	*tableau.Hub
-	checkerMap tableau.MessagerMap
+	checkerMap         tableau.MessagerMap
+	filteredCheckerMap tableau.MessagerMap
 }
 
 var hubSingleton *Hub
@@ -22,8 +24,9 @@ func GetHub() *Hub {
 	once.Do(func() {
 		// new instance
 		hubSingleton = &Hub{
-			Hub:        tableau.NewHub(),
-			checkerMap: tableau.MessagerMap{},
+			Hub:                tableau.NewHub(),
+			checkerMap:         tableau.MessagerMap{},
+			filteredCheckerMap: tableau.MessagerMap{},
 		}
 	})
 	return hubSingleton
@@ -34,45 +37,106 @@ func (h *Hub) Register(msger tableau.Messager) error {
 	return nil
 }
 
-func (h *Hub) Load(dir string, filter tableau.Filter, format format.Format) error {
-	configMap := h.NewMessagerMap(filter)
-	for name, msger := range h.checkerMap {
-		// replace with custom checker
-		configMap[name] = msger.Messager()
-	}
-	for name, msger := range configMap {
+func (h *Hub) load(dir string, format format.Format, subdirRewrites map[string]string) error {
+	for name, msger := range h.filteredCheckerMap {
 		fmt.Println("=== LOAD  " + name)
-		if err := msger.Load(dir, format); err != nil {
-			return fmt.Errorf("failed to load %v: %v", name, err)
+		if err := msger.Load(dir, format, load.SubdirRewrites(subdirRewrites)); err != nil {
+			fmt.Printf("--- FAIL: %v\n", name)
+			fmt.Printf("    %+v\n", err)
+			return errors.WithMessagef(err, "failed to load %v", name)
 		}
 		fmt.Println("--- DONE: " + name)
 	}
-	h.SetMessagerMap(configMap)
+	h.SetMessagerMap(h.filteredCheckerMap)
 	fmt.Println()
 	return nil
 }
 
-const breakFailedCount = 1
-
-func (h *Hub) Check() {
-	failedCount := 0
-	for name, checker := range h.checkerMap {
+func (h *Hub) check(breakFailedCount int) (errs []error) {
+	for name, checker := range h.filteredCheckerMap {
 		fmt.Printf("=== RUN   %v\n", name)
 		if err := checker.Check(); err != nil {
 			fmt.Printf("--- FAIL: %v\n", name)
 			fmt.Printf("    %+v\n", err)
-			failedCount++
+			errs = append(errs, err)
 		} else {
 			fmt.Printf("--- PASS: %v\n", name)
 		}
+		failedCount := len(errs)
 		if failedCount != 0 && failedCount >= breakFailedCount {
 			break
 		}
 	}
-	os.Exit(failedCount)
+	return errs
+}
+
+func (h *Hub) Run(dir string, filter tableau.Filter, format format.Format, options ...Option) (errs []error) {
+	opts := ParseOptions(options...)
+
+	filteredCheckerMap := h.NewMessagerMap(filter)
+	for name, msger := range h.checkerMap {
+		// replace with custom checker
+		if filter == nil || filter.Filter(name) {
+			filteredCheckerMap[name] = msger.Messager()
+		}
+	}
+	h.filteredCheckerMap = filteredCheckerMap
+
+	// load
+	err := h.load(dir, format, opts.SubdirRewrites)
+	if err != nil {
+		errs = append(errs, err)
+		return errs
+	}
+	// check
+	return h.check(opts.BreakFailedCount)
 }
 
 // Syntatic sugar for Hub's register
 func register(msger tableau.Messager) {
 	GetHub().Register(msger)
+}
+
+type Options struct {
+	// Break check loop if failed count is equal to or more than BreakFailedCount.
+	// Default: 1.
+	BreakFailedCount int
+	SubdirRewrites   map[string]string
+}
+
+// Option is the functional option type.
+type Option func(*Options)
+
+// BreakFailedCount sets BreakFailedCount option.
+func BreakFailedCount(count int) Option {
+	return func(opts *Options) {
+		opts.BreakFailedCount = count
+	}
+}
+
+// SubdirRewrites sets SubdirRewrites option.
+func SubdirRewrites(subdirRewrites map[string]string) Option {
+	return func(opts *Options) {
+		opts.SubdirRewrites = subdirRewrites
+	}
+}
+
+// newDefault returns a default Options.
+func newDefault() *Options {
+	return &Options{
+		BreakFailedCount: 1,
+	}
+}
+
+// ParseOptions parses functional options and merge them to default Options.
+func ParseOptions(setters ...Option) *Options {
+	// Default Options
+	opts := newDefault()
+	for _, setter := range setters {
+		setter(opts)
+	}
+	if opts.BreakFailedCount <= 1 {
+		opts.BreakFailedCount = 1
+	}
+	return opts
 }
