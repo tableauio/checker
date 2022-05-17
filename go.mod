@@ -8,9 +8,12 @@ require (
 )
 
 require (
+	github.com/davecgh/go-spew v1.1.1 // indirect
 	github.com/golang/protobuf v1.5.2 // indirect
 	github.com/google/go-cmp v0.5.6 // indirect
 	github.com/jhump/protoreflect v1.12.0 // indirect
+	github.com/rogpeppe/go-internal v1.8.1 // indirect
+	golang.org/x/sync v0.0.0-20210220032951-036812b2e83c // indirect
 	google.golang.org/genproto v0.0.0-20211208223120-3a66f561d7aa // indirect
 	gopkg.in/natefinch/lumberjack.v2 v2.0.0 // indirect
 )

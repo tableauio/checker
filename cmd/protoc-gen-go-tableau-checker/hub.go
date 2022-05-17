@@ -21,7 +21,8 @@ func generateHub(gen *protogen.Plugin) {
 }
 
 const staticHubContent = `"fmt"
-"sync"
+	"log"
+	"sync"
 
 	"github.com/pkg/errors"
 	"github.com/tableauio/tableau/format"
@@ -57,38 +58,38 @@ func (h *Hub) Register(msger tableau.Messager) error {
 
 func (h *Hub) load(dir string, format format.Format, subdirRewrites map[string]string) error {
 	for name, msger := range h.filteredCheckerMap {
-		fmt.Println("=== LOAD  " + name)
+		log.Println("=== LOAD  " + name)
 		if err := msger.Load(dir, format, load.SubdirRewrites(subdirRewrites)); err != nil {
-			fmt.Printf("--- FAIL: %v\n", name)
-			fmt.Printf("    %+v\n", err)
+			log.Printf("--- FAIL: %v\n", name)
+			log.Printf("    %+v\n", err)
 			return errors.WithMessagef(err, "failed to load %v", name)
 		}
-		fmt.Println("--- DONE: " + name)
+		log.Println("--- DONE: " + name)
 	}
 	h.SetMessagerMap(h.filteredCheckerMap)
-	fmt.Println()
+	log.Println()
 	return nil
 }
 
-func (h *Hub) check(breakFailedCount int) (errs []error) {
+func (h *Hub) check(breakFailedCount int) int {
+	failedCount := 0
 	for name, checker := range h.filteredCheckerMap {
-		fmt.Printf("=== RUN   %v\n", name)
+		log.Printf("=== RUN   %v\n", name)
 		if err := checker.Check(); err != nil {
-			fmt.Printf("--- FAIL: %v\n", name)
-			fmt.Printf("    %+v\n", err)
-			errs = append(errs, err)
+			log.Printf("--- FAIL: %v\n", name)
+			log.Printf("    %+v\n", err)
+			failedCount++
 		} else {
-			fmt.Printf("--- PASS: %v\n", name)
+			log.Printf("--- PASS: %v\n", name)
 		}
-		failedCount := len(errs)
 		if failedCount != 0 && failedCount >= breakFailedCount {
 			break
 		}
 	}
-	return errs
+	return failedCount
 }
 
-func (h *Hub) Run(dir string, filter tableau.Filter, format format.Format, options ...Option) (errs []error) {
+func (h *Hub) Run(dir string, filter tableau.Filter, format format.Format, options ...Option) error {
 	opts := ParseOptions(options...)
 
 	filteredCheckerMap := h.NewMessagerMap(filter)
@@ -103,11 +104,14 @@ func (h *Hub) Run(dir string, filter tableau.Filter, format format.Format, optio
 	// load
 	err := h.load(dir, format, opts.SubdirRewrites)
 	if err != nil {
-		errs = append(errs, err)
-		return errs
+		return err
 	}
 	// check
-	return h.check(opts.BreakFailedCount)
+	failedCount := h.check(opts.BreakFailedCount)
+	if failedCount != 0 {
+		return fmt.Errorf("Check failed count: %d", failedCount)
+	}
+	return nil
 }
 
 // Syntatic sugar for Hub's register

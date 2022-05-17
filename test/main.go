@@ -1,19 +1,21 @@
 package main
 
 import (
-	"fmt"
+	"log"
 	"os"
 
 	"github.com/tableauio/checker/test/check"
+	"github.com/tableauio/tableau"
+
 	// check "github.com/tableauio/checker/test/devcheck"
 	"github.com/tableauio/tableau/format"
 )
 
 func main() {
-	errs := check.GetHub().Run("./testdata/", nil, format.JSON)
-	for _, err := range errs {
-		fmt.Printf("failed to load: %+v\n", err)
+	tableau.SetLog("INFO", "")
+	err := check.GetHub().Run("./testdata/", nil, format.JSON)
+	if err != nil {
+		log.Printf("%+v\n", err)
 	}
-	failedCount := len(errs)
-	os.Exit(failedCount)
+	os.Exit(-1)
 }
