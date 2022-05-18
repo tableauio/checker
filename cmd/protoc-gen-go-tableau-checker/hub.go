@@ -75,9 +75,17 @@ func (h *Hub) check(breakFailedCount int) int {
 	failedCount := 0
 	for name, checker := range h.filteredCheckerMap {
 		log.Printf("=== RUN   %v\n", name)
-		if err := checker.Check(); err != nil {
+		// auto code generated check logic
+		err1 := checker.Messager().Check(h.Hub)
+		err2 := checker.Check(h.Hub)
+		if err1 != nil || err2 != nil {
 			log.Printf("--- FAIL: %v\n", name)
-			log.Printf("    %+v\n", err)
+			if err1 != nil {
+				log.Printf("auto check error: %+v\n", err1)
+			}
+			if err2 != nil {
+				log.Printf("custom check error: %+v\n", err2)
+			}
 			failedCount++
 		} else {
 			log.Printf("--- PASS: %v\n", name)

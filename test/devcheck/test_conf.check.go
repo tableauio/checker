@@ -20,7 +20,7 @@ type ItemConf struct {
 	tableau.ItemConf
 }
 
-func (x *ItemConf) Check() error {
+func (x *ItemConf) Check(hub *tableau.Hub) error {
 	fmt.Printf("ItemConf: check\n %v\n", x.ItemConf.Data())
 
 	conf1 := GetHub().GetItemConf()

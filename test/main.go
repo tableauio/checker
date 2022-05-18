@@ -16,6 +16,6 @@ func main() {
 	err := check.GetHub().Run("./testdata/", nil, format.JSON)
 	if err != nil {
 		log.Printf("%+v\n", err)
+		os.Exit(-1)
 	}
-	os.Exit(-1)
 }
