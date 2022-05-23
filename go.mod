@@ -3,8 +3,8 @@ module github.com/tableauio/checker
 go 1.17
 
 require (
-	github.com/tableauio/tableau v0.9.16
-	google.golang.org/protobuf v1.27.1
+	github.com/tableauio/tableau v0.9.17
+	google.golang.org/protobuf v1.28.0
 )
 
 require (
