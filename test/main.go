@@ -12,7 +12,7 @@ import (
 )
 
 func main() {
-	tableau.SetLog("INFO", "")
+	tableau.SetLog("INFO", "FULL", "")
 	err := check.GetHub().Run("./testdata/", nil, format.JSON)
 	if err != nil {
 		log.Printf("%+v\n", err)
