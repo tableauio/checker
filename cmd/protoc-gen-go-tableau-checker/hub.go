@@ -57,16 +57,18 @@ func (h *Hub) Register(msger tableau.Messager) error {
 }
 
 func (h *Hub) load(dir string, format format.Format, subdirRewrites map[string]string) error {
+	msgers := tableau.MessagerMap{}
 	for name, msger := range h.filteredCheckerMap {
 		log.Println("=== LOAD  " + name)
-		if err := msger.Load(dir, format, load.SubdirRewrites(subdirRewrites)); err != nil {
+		if err := msger.Messager().Load(dir, format, load.SubdirRewrites(subdirRewrites)); err != nil {
 			log.Printf("--- FAIL: %v\n", name)
 			log.Printf("    %+v\n", err)
 			return errors.WithMessagef(err, "failed to load %v", name)
 		}
 		log.Println("--- DONE: " + name)
+		msgers[name] = msger.Messager()
 	}
-	h.SetMessagerMap(h.filteredCheckerMap)
+	h.SetMessagerMap(msgers)
 	log.Println()
 	return nil
 }
@@ -75,8 +77,9 @@ func (h *Hub) check(breakFailedCount int) int {
 	failedCount := 0
 	for name, checker := range h.filteredCheckerMap {
 		log.Printf("=== RUN   %v\n", name)
-		// auto code generated check logic
+		// built-in auto-generated check logic
 		err1 := checker.Messager().Check(h.Hub)
+		// custom check logic
 		err2 := checker.Check(h.Hub)
 		if err1 != nil || err2 != nil {
 			log.Printf("--- FAIL: %v\n", name)
@@ -102,9 +105,8 @@ func (h *Hub) Run(dir string, filter tableau.Filter, format format.Format, optio
 
 	filteredCheckerMap := h.NewMessagerMap(filter)
 	for name, msger := range h.checkerMap {
-		// replace with custom checker
 		if filter == nil || filter.Filter(name) {
-			filteredCheckerMap[name] = msger.Messager()
+			filteredCheckerMap[name] = msger
 		}
 	}
 	h.filteredCheckerMap = filteredCheckerMap
