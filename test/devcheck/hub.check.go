@@ -2,13 +2,14 @@ package devcheck
 
 import (
 	"fmt"
-	"log"
 	"sync"
 
+	tableau "github.com/tableauio/checker/test/protoconf/tableau"
+
 	"github.com/pkg/errors"
-	"github.com/tableauio/checker/test/protoconf/tableau"
 	"github.com/tableauio/tableau/format"
 	"github.com/tableauio/tableau/load"
+	"github.com/tableauio/tableau/log"
 )
 
 type Hub struct {
@@ -41,39 +42,38 @@ func (h *Hub) Register(msger tableau.Messager) error {
 func (h *Hub) load(dir string, format format.Format, subdirRewrites map[string]string) error {
 	msgers := tableau.MessagerMap{}
 	for name, msger := range h.filteredCheckerMap {
-		log.Println("=== LOAD  " + name)
+		log.Log().Infof("=== LOAD  %s", name)
 		if err := msger.Messager().Load(dir, format, load.SubdirRewrites(subdirRewrites)); err != nil {
-			log.Printf("--- FAIL: %v\n", name)
-			log.Printf("    %+v\n", err)
+			log.Log().Errorf("--- FAIL: %v", name)
+			log.Log().Errorf("%+v", err)
 			return errors.WithMessagef(err, "failed to load %v", name)
 		}
-		log.Println("--- DONE: " + name)
+		log.Log().Infof("--- DONE: %v", name)
 		msgers[name] = msger.Messager()
 	}
 	h.SetMessagerMap(msgers)
-	log.Println()
 	return nil
 }
 
 func (h *Hub) check(breakFailedCount int) int {
 	failedCount := 0
 	for name, checker := range h.filteredCheckerMap {
-		log.Printf("=== RUN   %v\n", name)
+		log.Log().Infof("=== RUN   %v", name)
 		// built-in auto-generated check logic
 		err1 := checker.Messager().Check(h.Hub)
 		// custom check logic
 		err2 := checker.Check(h.Hub)
 		if err1 != nil || err2 != nil {
-			log.Printf("--- FAIL: %v\n", name)
+			log.Log().Errorf("--- FAIL: %v", name)
 			if err1 != nil {
-				log.Printf("auto check error: %+v\n", err1)
+				log.Log().Errorf("auto check error: %+v", err1)
 			}
 			if err2 != nil {
-				log.Printf("custom check error: %+v\n", err2)
+				log.Log().Errorf("custom check error: %+v", err2)
 			}
 			failedCount++
 		} else {
-			log.Printf("--- PASS: %v\n", name)
+			log.Log().Infof("--- PASS: %v", name)
 		}
 		if failedCount != 0 && failedCount >= breakFailedCount {
 			break

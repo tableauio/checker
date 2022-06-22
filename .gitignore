@@ -20,3 +20,4 @@ third_party/_submodules
 test/test
 test/check/
 cmd/protoc-gen-go-tableau-checker/protoc-gen-go-tableau-checker
+_logs

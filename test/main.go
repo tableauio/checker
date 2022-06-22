@@ -1,21 +1,27 @@
 package main
 
 import (
-	"log"
+	"fmt"
 	"os"
 
 	"github.com/tableauio/checker/test/check"
-	"github.com/tableauio/tableau"
 
 	// check "github.com/tableauio/checker/test/devcheck"
 	"github.com/tableauio/tableau/format"
+	"github.com/tableauio/tableau/log"
+	"github.com/tableauio/tableau/options"
 )
 
 func main() {
-	tableau.SetLog("INFO", "FULL", "")
+	log.Init(&options.LogOption{
+		Mode:     "FULL",
+		Level:    "INFO",
+		Filename: "_logs/checker.log",
+		Sink:     "MULTI",
+	})
 	err := check.GetHub().Run("./testdata/", nil, format.JSON)
 	if err != nil {
-		log.Printf("%+v\n", err)
+		fmt.Printf("%+v\n", err)
 		os.Exit(-1)
 	}
 }
