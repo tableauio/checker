@@ -73,7 +73,7 @@ func (h *Hub) load(dir string, format format.Format, subdirRewrites map[string]s
 		msger := msger
 		eg.Go(func() error {
 			log.Infof("=== LOAD  %s", name)
-			if err := msger.Messager().Load(dir, format, load.SubdirRewrites(subdirRewrites)); err != nil {
+			if err := msger.Messager().Load(dir, format, load.SubdirRewrites(subdirRewrites), load.IgnoreUnknownFields(true)); err != nil {
 				log.Errorf("--- FAIL: %v", name)
 				log.Errorf("%+v", err)
 				return errors.WithMessagef(err, "failed to load %v", name)
