@@ -11,15 +11,19 @@ import (
 
 const version = "0.1.6"
 
-var pkg *string
-var loaderPkg *string
-var out *string
+type Params struct {
+	pkg       string
+	loaderPkg string
+	outdir    string
+}
+
+var params = Params{}
 
 func main() {
 	var flags flag.FlagSet
-	pkg = flags.String("pkg", "check", "tableau checker package name")
-	loaderPkg = flags.String("loader-pkg", "tableau", "tableau loader package name")
-	out = flags.String("out", "", "tableau checker output directory")
+	flags.StringVar(&params.pkg, "pkg", "check", "tableau checker package name")
+	flags.StringVar(&params.loaderPkg, "loader-pkg", "tableau", "tableau loader package name")
+	flags.StringVar(&params.outdir, "out", "", "tableau checker output directory")
 	flag.Parse()
 
 	protogen.Options{

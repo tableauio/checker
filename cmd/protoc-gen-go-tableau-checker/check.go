@@ -26,10 +26,10 @@ var loaderImportPath protogen.GoImportPath
 // generateMessager generates a protoconf file correponsing to the protobuf file.
 // Each wrapped struct type implement the Messager interface.
 func generateMessager(gen *protogen.Plugin, file *protogen.File) {
-	loaderImportPath = protogen.GoImportPath(string(file.GoImportPath) + "/" + *loaderPkg)
+	loaderImportPath = protogen.GoImportPath(string(file.GoImportPath) + "/" + params.loaderPkg)
 
 	filename := filepath.Join(file.GeneratedFilenamePrefix + "." + checkExt + ".go")
-	path := filepath.Join(*out, filename)
+	path := filepath.Join(params.outdir, filename)
 	existed, err := Exists(path)
 	if err != nil {
 		panic(err)
@@ -42,7 +42,7 @@ func generateMessager(gen *protogen.Plugin, file *protogen.File) {
 		g := gen.NewGeneratedFile(filename, "")
 		generateFileHeader(gen, file, g, false)
 		g.P()
-		g.P("package ", *pkg)
+		g.P("package ", params.pkg)
 		g.P()
 		generateFileContent(gen, file, g)
 	}
@@ -148,14 +148,14 @@ func genMessage(gen *protogen.Plugin, file *protogen.File, g *protogen.Generated
 	// messager definition
 	g.P("type ", messagerName, " struct {")
 	if incremental {
-		g.P(*loaderPkg, ".", messagerName)
+		g.P(params.loaderPkg, ".", messagerName)
 	} else {
 		g.P(loaderImportPath.Ident(messagerName))
 	}
 	g.P("}")
 	g.P()
 
-	g.P("func (x *", messagerName, ") Check(hub *",loaderImportPath.Ident("Hub"), ") error {")
+	g.P("func (x *", messagerName, ") Check(hub *", loaderImportPath.Ident("Hub"), ") error {")
 	g.P("// TODO: implement this check function.")
 	g.P("return nil")
 	g.P("}")

@@ -12,7 +12,7 @@ func generateHub(gen *protogen.Plugin) {
 	g := gen.NewGeneratedFile(filename, "")
 	generateCommonHeader(gen, g, true)
 	g.P()
-	g.P("package ", *pkg)
+	g.P("package ", params.pkg)
 	g.P("import (")
 	g.P("tableau ", loaderImportPath)
 	g.P()
