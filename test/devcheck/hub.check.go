@@ -1,10 +1,11 @@
 package devcheck
 
 import (
+	tableau "github.com/tableauio/checker/test/protoconf/tableau"
+
 	"fmt"
 	"sync"
 
-	tableau "github.com/tableauio/checker/test/protoconf/tableau"
 	"golang.org/x/sync/errgroup"
 	"google.golang.org/protobuf/proto"
 	"google.golang.org/protobuf/reflect/protoreflect"
@@ -45,7 +46,7 @@ func (h *Hub) Register(msger tableau.Messager) error {
 	return nil
 }
 
-func (h *Hub) load(dir string, format format.Format, subdirRewrites map[string]string) error {
+func (h *Hub) load(dir string, format format.Format, opts *Options) error {
 	var mu sync.Mutex // guard msgers
 	msgers := tableau.MessagerMap{}
 
@@ -55,9 +56,12 @@ func (h *Hub) load(dir string, format format.Format, subdirRewrites map[string]s
 		msger := msger
 		eg.Go(func() error {
 			log.Infof("=== LOAD  %s", name)
-			if err := msger.Messager().Load(dir, format, load.SubdirRewrites(subdirRewrites)); err != nil {
-				log.Errorf("--- FAIL: %v", name)
-				log.Errorf("%+v", err)
+			if err := msger.Messager().Load(dir, format,
+				load.SubdirRewrites(opts.SubdirRewrites),
+				load.IgnoreUnknownFields(opts.IgnoreUnknownFields)); err != nil {
+				bookName, sheetName := getBookAndSheet(opts.ProtoPackage, name)
+				log.Errorf("--- FAIL: workbook %s, worksheet %s", bookName, sheetName)
+				log.Errorf("load error:%+v, workbook %s, worksheet %s", err, bookName, sheetName)
 				return errors.WithMessagef(err, "failed to load %v", name)
 			}
 			log.Infof("--- DONE: %v", name)
@@ -69,7 +73,7 @@ func (h *Hub) load(dir string, format format.Format, subdirRewrites map[string]s
 		})
 	}
 	if err := eg.Wait(); err != nil {
-		log.Infof("--- FAIL: load failed: %v", err)
+		log.Errorf("--- FAIL: load failed: %v", err)
 		return err
 	}
 	h.SetMessagerMap(msgers)
@@ -105,10 +109,10 @@ func (h *Hub) check(protoPackage string, breakFailedCount int) int {
 			bookName, sheetName := getBookAndSheet(protoPackage, name)
 			log.Errorf("--- FAIL: workbook %s, worksheet %s", bookName, sheetName)
 			if err1 != nil {
-				log.Errorf("auto check error: %+v", err1)
+				log.Errorf("auto check error: %+v, workbook %s, worksheet %s", err1, bookName, sheetName)
 			}
 			if err2 != nil {
-				log.Errorf("custom check error: %+v", err2)
+				log.Errorf("custom check error: %+v, workbook %s, worksheet %s", err2, bookName, sheetName)
 			}
 			failedCount++
 		} else {
@@ -133,7 +137,7 @@ func (h *Hub) Run(dir string, filter tableau.Filter, format format.Format, optio
 	h.filteredCheckerMap = filteredCheckerMap
 
 	// load
-	err := h.load(dir, format, opts.SubdirRewrites)
+	err := h.load(dir, format, opts)
 	if err != nil {
 		return err
 	}
@@ -160,6 +164,9 @@ type Options struct {
 	// The proto package name of .proto files.
 	// Default: "protoconf".
 	ProtoPackage string
+	// Whether to ignore unknown JSON fields during parsing.
+	// Default: false.
+	IgnoreUnknownFields bool
 }
 
 // Option is the functional option type.
@@ -176,6 +183,20 @@ func BreakFailedCount(count int) Option {
 func SubdirRewrites(subdirRewrites map[string]string) Option {
 	return func(opts *Options) {
 		opts.SubdirRewrites = subdirRewrites
+	}
+}
+
+// ProtoPackage sets ProtoPackage option.
+func ProtoPackage(protoPackage string) Option {
+	return func(opts *Options) {
+		opts.ProtoPackage = protoPackage
+	}
+}
+
+// IgnoreUnknownFields sets IgnoreUnknownFields option as true.
+func IgnoreUnknownFields() Option {
+	return func(opts *Options) {
+		opts.IgnoreUnknownFields = true
 	}
 }
 

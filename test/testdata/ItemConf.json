@@ -2,7 +2,8 @@
     "itemMap": {
         "0": {
             "id": 0,
-            "name": "coin1"
+            "name": "coin1",
+            "unknown-field": 0
         },
         "1": {
             "id": 1,

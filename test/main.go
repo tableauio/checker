@@ -19,6 +19,7 @@ import (
 
 var protoPkg = "protoconf"
 var pathPrefix = ""
+
 type checkFilter struct {
 }
 
@@ -41,7 +42,7 @@ func main() {
 		Filename: "_logs/checker.log",
 		Sink:     "MULTI",
 	})
-	err := check.GetHub().Run("./testdata/", &checkFilter{}, format.JSON)
+	err := check.GetHub().Run("./testdata/", &checkFilter{}, format.JSON, check.IgnoreUnknownFields())
 	if err != nil {
 		fmt.Printf("%+v\n", err)
 		os.Exit(-1)

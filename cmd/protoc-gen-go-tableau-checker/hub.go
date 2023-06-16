@@ -203,6 +203,20 @@ func SubdirRewrites(subdirRewrites map[string]string) Option {
 	}
 }
 
+// ProtoPackage sets ProtoPackage option.
+func ProtoPackage(protoPackage string) Option {
+	return func(opts *Options) {
+		opts.ProtoPackage = protoPackage
+	}
+}
+
+// IgnoreUnknownFields sets IgnoreUnknownFields option as true.
+func IgnoreUnknownFields() Option {
+	return func(opts *Options) {
+		opts.IgnoreUnknownFields = true
+	}
+}
+
 // newDefault returns a default Options.
 func newDefault() *Options {
 	return &Options{
