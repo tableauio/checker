@@ -156,7 +156,7 @@ func genMessage(gen *protogen.Plugin, file *protogen.File, g *protogen.Generated
 	g.P()
 
 	g.P("func (x *", messagerName, ") Check(hub *", loaderImportPath.Ident("Hub"), ") error {")
-	g.P("// TODO: implement this check function.")
+	g.P("// TODO: implement here.")
 	g.P("return nil")
 	g.P("}")
 	g.P()
