@@ -1,0 +1,18 @@
+{
+    "itemMap": {
+        "0": {
+            "id": 0,
+            "name": "coin1",
+            "unknown-field": 0
+        },
+        "1": {
+            "id": 1,
+            "name": "coin1",
+            "path": {
+                "dir": "/home/protoconf/",
+                "name": "icon.png"
+            },
+            "expiry": "2021-01-01T18:00:00Z"
+        }
+    }
+}

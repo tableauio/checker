@@ -2,6 +2,7 @@ package devcheck
 
 import (
 	"fmt"
+	"log"
 
 	"github.com/pkg/errors"
 	"github.com/tableauio/checker/test/protoconf/tableau"
@@ -11,8 +12,13 @@ type ActivityConf struct {
 	tableau.ActivityConf
 }
 
-func (x *ActivityConf) Check() error {
-	fmt.Println("ActivityConf: check")
+func (x *ActivityConf) Check(hub *tableau.Hub) error {
+	// TODO: implement here.
+	return nil
+}
+
+func (x *ActivityConf) CheckCompatibility(hub, newHub *tableau.Hub) error {
+	// TODO: implement here.
 	return nil
 }
 
@@ -23,12 +29,12 @@ type ItemConf struct {
 func (x *ItemConf) Check(hub *tableau.Hub) error {
 	fmt.Printf("ItemConf: check\n %v\n", x.ItemConf.Data())
 
-	conf1 := GetHub().GetItemConf()
+	conf1 := hub.GetItemConf()
 	if conf1 == nil {
 		return errors.Errorf("ItemConf is nil")
 	}
 
-	conf := GetHub().GetActivityConf()
+	conf := hub.GetActivityConf()
 	if conf == nil {
 		return errors.Errorf("ActivityConf is nil")
 	}
@@ -41,7 +47,19 @@ func (x *ItemConf) Check(hub *tableau.Hub) error {
 	return nil
 }
 
+func (x *ItemConf) CheckCompatibility(hub, newHub *tableau.Hub) error {
+	// TODO: implement here.
+	log.Printf("old: %v\n", x.Data())
+	log.Printf("new: %v", newHub.GetItemConf().Data())
+	return nil
+}
+
 func init() {
-	// register(&ActivityConf{})
-	register(&ItemConf{})
+	// NOTE: This func is auto-generated. DO NOT EDIT.
+	register("ActivityConf", func() tableau.Messager {
+		return &ActivityConf{}
+	})
+	register("ItemConf", func() tableau.Messager {
+		return &ItemConf{}
+	})
 }

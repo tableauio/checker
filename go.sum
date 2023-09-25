@@ -96,6 +96,8 @@ github.com/stretchr/testify v1.7.0/go.mod h1:6Fq8oRcR53rry900zMqJjRRixrwX3KX962/
 github.com/stretchr/testify v1.7.1 h1:5TQK59W5E3v0r2duFAb7P95B6hEeOyEnHRa8MjYSMTY=
 github.com/tableauio/loader v0.0.0-20230720014944-ad0860d0509a h1:+X9F8NonJNGnGlP4WsyQJCuFN2sfqVfzI8ua4Z2tunI=
 github.com/tableauio/loader v0.0.0-20230720014944-ad0860d0509a/go.mod h1:ujlaI/rTZ38zS6/embaTOK2KXBvMaKurBTklskD8uh0=
+github.com/tableauio/loader v0.0.0-20230925132025-5be81f4042a6 h1:Oa/8qy5BIJ760DKoNXq7DSR0i0M2M6ztbTAGKdwms0U=
+github.com/tableauio/loader v0.0.0-20230925132025-5be81f4042a6/go.mod h1:ujlaI/rTZ38zS6/embaTOK2KXBvMaKurBTklskD8uh0=
 github.com/tableauio/tableau v0.10.6 h1:2Su9EgwVcWWr+XRm6RG//gnDxYK//2oO24eNfHeS0K8=
 github.com/tableauio/tableau v0.10.6/go.mod h1:htRsBqz8X5TmfIJPduRNw/RB9OFwwN6GId+EiT1ZLSg=
 github.com/xuri/efp v0.0.0-20220407160117-ad0f7a785be8 h1:3X7aE0iLKJ5j+tz58BpvIZkXNV7Yq4jC93Z/rbN2Fxk=

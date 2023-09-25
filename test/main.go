@@ -42,8 +42,13 @@ func main() {
 		Filename: "_logs/checker.log",
 		Sink:     "MULTI",
 	})
-	err := check.GetHub().Run("./testdata/", &checkFilter{}, format.JSON, check.IgnoreUnknownFields())
+	err := check.NewHub().Check("./testdata/", &checkFilter{}, format.JSON, check.IgnoreUnknownFields())
 	if err != nil {
+		fmt.Printf("%+v\n", err)
+		os.Exit(-1)
+	}
+	cerr := check.NewHub().CheckCompatibility("./testdata/", "./testdata1/", &checkFilter{}, format.JSON, check.IgnoreUnknownFields())
+	if cerr != nil {
 		fmt.Printf("%+v\n", err)
 		os.Exit(-1)
 	}

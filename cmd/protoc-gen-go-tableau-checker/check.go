@@ -138,7 +138,9 @@ func generateRegister(messagers []string, g *protogen.GeneratedFile) {
 	g.P("func init() {")
 	g.P("// NOTE: This func is auto-generated. DO NOT EDIT.")
 	for _, messager := range messagers {
-		g.P(`register(&`, messager, `{})`)
+		g.P(`register("`, messager, `", func() `, loaderImportPath.Ident("Messager"), ` {`)
+		g.P("return &", messager, "{}")
+		g.P("})")
 	}
 	g.P("}")
 }
@@ -156,6 +158,12 @@ func genMessage(gen *protogen.Plugin, file *protogen.File, g *protogen.Generated
 	g.P()
 
 	g.P("func (x *", messagerName, ") Check(hub *", loaderImportPath.Ident("Hub"), ") error {")
+	g.P("// TODO: implement here.")
+	g.P("return nil")
+	g.P("}")
+	g.P()
+
+	g.P("func (x *", messagerName, ") CheckCompatibility(hub, newHub *", loaderImportPath.Ident("Hub"), ") error {")
 	g.P("// TODO: implement here.")
 	g.P("return nil")
 	g.P("}")

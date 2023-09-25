@@ -19,34 +19,38 @@ import (
 	"github.com/tableauio/tableau/proto/tableaupb"
 )
 
+var registrarSingleton *tableau.Registrar
+var once sync.Once
+
+func getRegistrar() *tableau.Registrar {
+	once.Do(func() {
+		registrarSingleton = tableau.NewRegistrar()
+	})
+	return registrarSingleton
+}
+
 type Hub struct {
 	*tableau.Hub
-	checkerMap         tableau.MessagerMap
 	filteredCheckerMap tableau.MessagerMap
 }
 
-var hubSingleton *Hub
-var once sync.Once
+func NewHub() *Hub {
+	return &Hub{
+		Hub:                tableau.NewHub(),
+		filteredCheckerMap: tableau.MessagerMap{},
+	}
+}
 
-// GetHub return the singleton of Hub
-func GetHub() *Hub {
-	once.Do(func() {
-		// new instance
-		hubSingleton = &Hub{
-			Hub:                tableau.NewHub(),
-			checkerMap:         tableau.MessagerMap{},
-			filteredCheckerMap: tableau.MessagerMap{},
+func (h *Hub) load(dir string, filter tableau.Filter, format format.Format, options ...Option) error {
+	opts := ParseOptions(options...)
+	filteredCheckerMap := h.NewMessagerMap(filter)
+	for name, gen := range registrarSingleton.Generators {
+		if filter == nil || filter.Filter(name) {
+			filteredCheckerMap[name] = gen()
 		}
-	})
-	return hubSingleton
-}
+	}
+	h.filteredCheckerMap = filteredCheckerMap
 
-func (h *Hub) Register(msger tableau.Messager) error {
-	h.checkerMap[msger.Messager().Name()] = msger
-	return nil
-}
-
-func (h *Hub) load(dir string, format format.Format, opts *Options) error {
 	var mu sync.Mutex // guard msgers
 	msgers := tableau.MessagerMap{}
 
@@ -125,20 +129,38 @@ func (h *Hub) check(protoPackage string, breakFailedCount int) int {
 	return failedCount
 }
 
-func (h *Hub) Run(dir string, filter tableau.Filter, format format.Format, options ...Option) error {
-	opts := ParseOptions(options...)
-
-	filteredCheckerMap := h.NewMessagerMap(filter)
-	for name, msger := range h.checkerMap {
-		if filter == nil || filter.Filter(name) {
-			filteredCheckerMap[name] = msger
+func (h *Hub) checkCompatibility(newHub *tableau.Hub, protoPackage string, breakFailedCount int) int {
+	failedCount := 0
+	for name, checker := range h.filteredCheckerMap {
+		log.Infof("=== RUN   %v", name)
+		// built-in auto-generated check logic
+		err1 := checker.Messager().Check(h.Hub)
+		// custom check logic
+		err2 := checker.CheckCompatibility(h.Hub, newHub)
+		if err1 != nil || err2 != nil {
+			bookName, sheetName := getBookAndSheet(protoPackage, name)
+			log.Errorf("--- FAIL: workbook %s, worksheet %s", bookName, sheetName)
+			if err1 != nil {
+				log.Errorf("auto check error: %+v, workbook %s, worksheet %s", err1, bookName, sheetName)
+			}
+			if err2 != nil {
+				log.Errorf("custom check error: %+v, workbook %s, worksheet %s", err2, bookName, sheetName)
+			}
+			failedCount++
+		} else {
+			log.Infof("--- PASS: %v", name)
+		}
+		if failedCount != 0 && failedCount >= breakFailedCount {
+			break
 		}
 	}
-	h.filteredCheckerMap = filteredCheckerMap
+	return failedCount
+}
 
-	// load
-	err := h.load(dir, format, opts)
-	if err != nil {
+func (h *Hub) Check(dir string, filter tableau.Filter, format format.Format, options ...Option) error {
+	opts := ParseOptions(options...)
+	// load hub
+	if err := h.load(dir, filter, format, options...); err != nil {
 		return err
 	}
 	// check
@@ -149,9 +171,27 @@ func (h *Hub) Run(dir string, filter tableau.Filter, format format.Format, optio
 	return nil
 }
 
-// Syntatic sugar for Hub's register
-func register(msger tableau.Messager) {
-	GetHub().Register(msger)
+func (h *Hub) CheckCompatibility(dir, newDir string, filter tableau.Filter, format format.Format, options ...Option) error {
+	opts := ParseOptions(options...)
+	// load hub
+	if err := h.load(dir, filter, format, options...); err != nil {
+		return err
+	}
+	// load new hub
+	newHub := NewHub()
+	if err := newHub.load(newDir, filter, format, options...); err != nil {
+		return err
+	}
+	// check
+	failedCount := h.checkCompatibility(newHub.Hub, opts.ProtoPackage, opts.BreakFailedCount)
+	if failedCount != 0 {
+		return fmt.Errorf("Check failed count: %d", failedCount)
+	}
+	return nil
+}
+
+func register(name string, gen tableau.MessagerGenerator) {
+	getRegistrar().Register(name, gen)
 }
 
 type Options struct {
