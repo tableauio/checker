@@ -13,12 +13,12 @@ import (
 	"google.golang.org/protobuf/types/descriptorpb"
 )
 
-const (
-	errorsPackage = protogen.GoImportPath("errors")
-	fmtPackage    = protogen.GoImportPath("fmt")
-	formatPackage = protogen.GoImportPath("github.com/tableauio/tableau/format")
-	loadPackage   = protogen.GoImportPath("github.com/tableauio/tableau/load")
-)
+// const (
+// 	errorsPackage = protogen.GoImportPath("errors")
+// 	fmtPackage    = protogen.GoImportPath("fmt")
+// 	formatPackage = protogen.GoImportPath("github.com/tableauio/tableau/format")
+// 	loadPackage   = protogen.GoImportPath("github.com/tableauio/tableau/load")
+// )
 
 // golbal container for record all proto filenames and messager names
 var loaderImportPath protogen.GoImportPath
@@ -51,7 +51,7 @@ func generateMessager(gen *protogen.Plugin, file *protogen.File) {
 var checkerRegexp *regexp.Regexp
 
 func init() {
-	checkerRegexp = regexp.MustCompile(`^type (.+) struct {`) // e.g.: map<uint32,Type>
+	checkerRegexp = regexp.MustCompile(`^type (.+) struct {`) // e.g.: type ItemConf struct {
 }
 
 func addIncrementalFileContent(gen *protogen.Plugin, file *protogen.File, g *protogen.GeneratedFile, path string) {
@@ -115,7 +115,7 @@ func addIncrementalFileContent(gen *protogen.Plugin, file *protogen.File, g *pro
 		}
 	}
 
-	generateRegister(fileMessagers, g)
+	generateRegister(fileMessagers, g, true)
 }
 
 // generateFileContent generates struct type definitions.
@@ -130,16 +130,22 @@ func generateFileContent(gen *protogen.Plugin, file *protogen.File, g *protogen.
 			fileMessagers = append(fileMessagers, messagerName)
 		}
 	}
-	generateRegister(fileMessagers, g)
+	generateRegister(fileMessagers, g, false)
 }
 
-func generateRegister(messagers []string, g *protogen.GeneratedFile) {
+func generateRegister(messagers []string, g *protogen.GeneratedFile, incremental bool) {
 	// register messagers
 	g.P("func init() {")
 	g.P("// NOTE: This func is auto-generated. DO NOT EDIT.")
+	var msgTypeAccesser any
+	if incremental {
+		msgTypeAccesser = params.loaderPkg + ".Messager"
+	} else {
+		msgTypeAccesser = loaderImportPath.Ident("Messager")
+	}
 	for _, messager := range messagers {
-		g.P(`register("`, messager, `", func() `, loaderImportPath.Ident("Messager"), ` {`)
-		g.P("return &", messager, "{}")
+		g.P(`register(func() `, msgTypeAccesser, ` {`)
+		g.P("return new(", messager, ")")
 		g.P("})")
 	}
 	g.P("}")
@@ -157,13 +163,19 @@ func genMessage(gen *protogen.Plugin, file *protogen.File, g *protogen.Generated
 	g.P("}")
 	g.P()
 
-	g.P("func (x *", messagerName, ") Check(hub *", loaderImportPath.Ident("Hub"), ") error {")
+	var hubTypeAccesser any
+	if incremental {
+		hubTypeAccesser = params.loaderPkg + ".Hub"
+	} else {
+		hubTypeAccesser = loaderImportPath.Ident("Hub")
+	}
+	g.P("func (x *", messagerName, ") Check(hub *", hubTypeAccesser, ") error {")
 	g.P("// TODO: implement here.")
 	g.P("return nil")
 	g.P("}")
 	g.P()
 
-	g.P("func (x *", messagerName, ") CheckCompatibility(hub, newHub *", loaderImportPath.Ident("Hub"), ") error {")
+	g.P("func (x *", messagerName, ") CheckCompatibility(hub, newHub *", hubTypeAccesser, ") error {")
 	g.P("// TODO: implement here.")
 	g.P("return nil")
 	g.P("}")
