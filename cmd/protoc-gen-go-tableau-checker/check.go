@@ -137,14 +137,14 @@ func generateRegister(messagers []string, g *protogen.GeneratedFile, incremental
 	// register messagers
 	g.P("func init() {")
 	g.P("// NOTE: This func is auto-generated. DO NOT EDIT.")
-	var msgTypeAccesser any
+	var msgTypeIdent any
 	if incremental {
-		msgTypeAccesser = params.loaderPkg + ".Messager"
+		msgTypeIdent = params.loaderPkg + ".Messager"
 	} else {
-		msgTypeAccesser = loaderImportPath.Ident("Messager")
+		msgTypeIdent = loaderImportPath.Ident("Messager")
 	}
 	for _, messager := range messagers {
-		g.P(`register(func() `, msgTypeAccesser, ` {`)
+		g.P(`register(func() `, msgTypeIdent, ` {`)
 		g.P("return new(", messager, ")")
 		g.P("})")
 	}
@@ -163,19 +163,19 @@ func genMessage(gen *protogen.Plugin, file *protogen.File, g *protogen.Generated
 	g.P("}")
 	g.P()
 
-	var hubTypeAccesser any
+	var hubTypeIdent any
 	if incremental {
-		hubTypeAccesser = params.loaderPkg + ".Hub"
+		hubTypeIdent = params.loaderPkg + ".Hub"
 	} else {
-		hubTypeAccesser = loaderImportPath.Ident("Hub")
+		hubTypeIdent = loaderImportPath.Ident("Hub")
 	}
-	g.P("func (x *", messagerName, ") Check(hub *", hubTypeAccesser, ") error {")
+	g.P("func (x *", messagerName, ") Check(hub *", hubTypeIdent, ") error {")
 	g.P("// TODO: implement here.")
 	g.P("return nil")
 	g.P("}")
 	g.P()
 
-	g.P("func (x *", messagerName, ") CheckCompatibility(hub, newHub *", hubTypeAccesser, ") error {")
+	g.P("func (x *", messagerName, ") CheckCompatibility(hub, newHub *", hubTypeIdent, ") error {")
 	g.P("// TODO: implement here.")
 	g.P("return nil")
 	g.P("}")
