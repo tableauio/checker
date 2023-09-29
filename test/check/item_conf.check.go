@@ -9,6 +9,7 @@ package check
 import (
 	"log"
 
+	"github.com/pkg/errors"
 	tableau "github.com/tableauio/checker/test/protoconf/tableau"
 )
 
@@ -25,7 +26,7 @@ func (x *ItemConf) CheckCompatibility(hub, newHub *tableau.Hub) error {
 	// TODO: implement here.
 	log.Printf("old: %v\n", x.Data())
 	log.Printf("new: %v\n", newHub.GetItemConf().Data())
-	return nil
+	return errors.Errorf("id missing: 1")
 }
 
 func init() {

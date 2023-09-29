@@ -1,7 +1,6 @@
 package main
 
 import (
-	"fmt"
 	"os"
 	"strings"
 
@@ -15,6 +14,7 @@ import (
 	"github.com/tableauio/tableau/format"
 	"github.com/tableauio/tableau/log"
 	"github.com/tableauio/tableau/proto/tableaupb"
+	"github.com/tableauio/tableau/xerrors"
 )
 
 var protoPkg = "protoconf"
@@ -42,14 +42,18 @@ func main() {
 		Filename: "_logs/checker.log",
 		Sink:     "MULTI",
 	})
-	err := check.NewHub().Check("./testdata/", &checkFilter{}, format.JSON, check.IgnoreUnknownFields())
-	if err != nil {
-		fmt.Printf("%+v\n", err)
+	err1 := check.NewHub().Check("./testdata/", &checkFilter{}, format.JSON,
+		check.BreakFailedCount(2),
+		check.IgnoreUnknownFields())
+	if err1 != nil {
+		log.Errorf("check failed, see errors below:\n%s", xerrors.NewDesc(err1))
 		os.Exit(-1)
 	}
-	cerr := check.NewHub().CheckCompatibility("./testdata/", "./testdata1/", &checkFilter{}, format.JSON, check.IgnoreUnknownFields())
-	if cerr != nil {
-		fmt.Printf("%+v\n", err)
+	err2 := check.NewHub().CheckCompatibility("./testdata/", "./testdata1/", &checkFilter{}, format.JSON,
+		check.BreakFailedCount(2),
+		check.IgnoreUnknownFields())
+	if err2 != nil {
+		log.Errorf("check compatibility failed, see errors below:\n%s", xerrors.NewDesc(err2))
 		os.Exit(-1)
 	}
 }
