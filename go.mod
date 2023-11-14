@@ -5,7 +5,7 @@ go 1.20
 require (
 	github.com/pkg/errors v0.9.1
 	github.com/tableauio/loader v0.0.0-20230925132025-5be81f4042a6
-	github.com/tableauio/tableau v0.10.8-0.20230929080054-850dff9d3079
+	github.com/tableauio/tableau v0.10.8-0.20231114072616-342aeb2f683e
 	golang.org/x/sync v0.1.0
 	google.golang.org/protobuf v1.30.0
 )

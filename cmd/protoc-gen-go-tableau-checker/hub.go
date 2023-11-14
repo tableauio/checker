@@ -70,6 +70,12 @@ func (h *Hub) load(dir string, filter tableau.Filter, format format.Format, opti
 
 	var mu sync.Mutex // guard msgers
 	msgers := tableau.MessagerMap{}
+	
+	var loadOpts []load.Option
+	loadOpts = append(loadOpts, load.SubdirRewrites(opts.SubdirRewrites))
+	if opts.IgnoreUnknownFields {
+		loadOpts = append(loadOpts, load.IgnoreUnknownFields())
+	}
 
 	var eg errgroup.Group
 	for name, msger := range h.filteredCheckerMap {
@@ -77,9 +83,7 @@ func (h *Hub) load(dir string, filter tableau.Filter, format format.Format, opti
 		msger := msger
 		eg.Go(func() error {
 			log.Infof("=== LOAD  %s", name)
-			if err := msger.Messager().Load(dir, format,
-				load.SubdirRewrites(opts.SubdirRewrites),
-				load.IgnoreUnknownFields(opts.IgnoreUnknownFields)); err != nil {
+			if err := msger.Messager().Load(dir, format, loadOpts...); err != nil {
 				bookName, sheetName := getBookAndSheet(opts.ProtoPackage, name)
 				log.Errorf("--- FAIL: workbook %s, worksheet %s", bookName, sheetName)
 				return err

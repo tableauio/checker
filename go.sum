@@ -121,6 +121,8 @@ github.com/tableauio/tableau v0.10.8-0.20230929032506-ae3e4a78bf40 h1:mfBtsuQW2l
 github.com/tableauio/tableau v0.10.8-0.20230929032506-ae3e4a78bf40/go.mod h1:O8IFfmVLHCfnZ5Mqot83VUjgnbM4brUHlpLwjCrPUM8=
 github.com/tableauio/tableau v0.10.8-0.20230929080054-850dff9d3079 h1:wjBsjdEJ+h9nR4eFEYBkBJEcr/p3U2akKViS5u7tcuQ=
 github.com/tableauio/tableau v0.10.8-0.20230929080054-850dff9d3079/go.mod h1:O8IFfmVLHCfnZ5Mqot83VUjgnbM4brUHlpLwjCrPUM8=
+github.com/tableauio/tableau v0.10.8-0.20231114072616-342aeb2f683e h1:yPuXnG3W9fwPmprT+fBQc0xpOktLGiblaiuOsAB/q8o=
+github.com/tableauio/tableau v0.10.8-0.20231114072616-342aeb2f683e/go.mod h1:O8IFfmVLHCfnZ5Mqot83VUjgnbM4brUHlpLwjCrPUM8=
 github.com/xuri/efp v0.0.0-20220407160117-ad0f7a785be8 h1:3X7aE0iLKJ5j+tz58BpvIZkXNV7Yq4jC93Z/rbN2Fxk=
 github.com/xuri/efp v0.0.0-20220407160117-ad0f7a785be8/go.mod h1:ybY/Jr0T0GTCnYjKqmdwxyxn2BQf2RcQIIvex5QldPI=
 github.com/xuri/efp v0.0.0-20220603152613-6918739fd470 h1:6932x8ltq1w4utjmfMPVj09jdMlkY0aiA6+Skbtl3/c=
