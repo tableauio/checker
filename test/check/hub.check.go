@@ -72,8 +72,7 @@ func (h *Hub) load(dir string, filter tableau.Filter, format format.Format, opti
 			log.Infof("=== LOAD  %s", name)
 			if err := msger.Messager().Load(dir, format, loadOpts...); err != nil {
 				bookName, sheetName := getBookAndSheet(opts.ProtoPackage, name)
-				log.Errorf("--- FAIL: workbook %s, worksheet %s", bookName, sheetName)
-				return err
+				return fmt.Errorf("error: workbook %s, worksheet %s, load failed: %+v\n", bookName, sheetName, err)
 			}
 			log.Infof("--- DONE: %v", name)
 
