@@ -70,13 +70,15 @@ func (h *Hub) load(dir string, filter tableau.Filter, format format.Format, opti
 
 	var mu sync.Mutex // guard msgers
 	msgers := tableau.MessagerMap{}
-	
+
 	var loadOpts []load.Option
 	loadOpts = append(loadOpts, load.SubdirRewrites(opts.SubdirRewrites))
 	if opts.IgnoreUnknownFields {
 		loadOpts = append(loadOpts, load.IgnoreUnknownFields())
 	}
 
+	var errsMu sync.Mutex
+	var errs []error
 	var eg errgroup.Group
 	for name, msger := range h.filteredCheckerMap {
 		name := name
@@ -85,7 +87,15 @@ func (h *Hub) load(dir string, filter tableau.Filter, format format.Format, opti
 			log.Infof("=== LOAD  %s", name)
 			if err := msger.Messager().Load(dir, format, loadOpts...); err != nil {
 				bookName, sheetName := getBookAndSheet(opts.ProtoPackage, name)
-				return fmt.Errorf("error: workbook %s, worksheet %s, load failed: %+v\n", bookName, sheetName, err)
+				//lint:ignore ST1005 we want to prettify multiple error messages
+				err := fmt.Errorf("error: workbook %s, worksheet %s, load failed: %+v\n", bookName, sheetName, err)
+				if opts.SkipLoadErrors {
+					errsMu.Lock()
+					errs = append(errs, err)
+					errsMu.Unlock()
+					return nil
+				}
+				return err
 			}
 			log.Infof("--- DONE: %v", name)
 
@@ -99,7 +109,7 @@ func (h *Hub) load(dir string, filter tableau.Filter, format format.Format, opti
 		return err
 	}
 	h.SetMessagerMap(msgers)
-	return nil
+	return errors.Join(errs...)
 }
 
 func getBookAndSheet(protoPackage, msgName string) (bookName string, sheetName string) {
@@ -176,24 +186,29 @@ func (h *Hub) checkCompatibility(newHub *tableau.Hub, protoPackage string, break
 func (h *Hub) Check(dir string, filter tableau.Filter, format format.Format, options ...Option) error {
 	opts := ParseOptions(options...)
 	// load hub
-	if err := h.load(dir, filter, format, options...); err != nil {
-		return err
+	loadErr := h.load(dir, filter, format, options...)
+	if loadErr != nil && !opts.SkipLoadErrors {
+		return loadErr
 	}
-	return h.check(opts.ProtoPackage, opts.BreakFailedCount)
+	checkErr := h.check(opts.ProtoPackage, opts.BreakFailedCount)
+	return errors.Join(loadErr, checkErr)
 }
 
 func (h *Hub) CheckCompatibility(dir, newDir string, filter tableau.Filter, format format.Format, options ...Option) error {
 	opts := ParseOptions(options...)
 	// load hub
-	if err := h.load(dir, filter, format, options...); err != nil {
-		return err
+	loadErr := h.load(dir, filter, format, options...);
+	if loadErr != nil && !opts.SkipLoadErrors {
+		return loadErr
 	}
 	// load new hub
 	newHub := NewHub()
-	if err := newHub.load(newDir, filter, format, options...); err != nil {
-		return err
+	loadErr1 := newHub.load(newDir, filter, format, options...)
+	if loadErr1 != nil && !opts.SkipLoadErrors {
+		return loadErr1
 	}
-	return h.checkCompatibility(newHub.Hub, opts.ProtoPackage, opts.BreakFailedCount)
+	checkErr := h.checkCompatibility(newHub.Hub, opts.ProtoPackage, opts.BreakFailedCount)
+	return errors.Join(loadErr, loadErr1, checkErr)
 }
 
 func register(gen tableau.MessagerGenerator) {
@@ -202,17 +217,31 @@ func register(gen tableau.MessagerGenerator) {
 
 type Options struct {
 	// Break check loop if failed count is equal to or more than BreakFailedCount.
+	//
 	// Default: 1.
 	BreakFailedCount int
 	// Rewrite subdir path (relative to workbook name option in .proto file).
+	//
 	// Default: nil.
 	SubdirRewrites map[string]string
 	// The proto package name of .proto files.
+	//
 	// Default: "protoconf".
 	ProtoPackage string
 	// Whether to ignore unknown JSON fields during parsing.
+	//
 	// Default: false.
 	IgnoreUnknownFields bool
+	// Whether to ignore errors during loading.
+	//
+	// Errors may occur during loading old config files when do compatibility
+	// check. For example, some new worksheets you recently add are not
+	// existed, or proto schema are not compatible, just ignore the loading
+	// errors (then these proto message objects are nil after loading), so that
+	// compatibility check can continue to run.
+	//
+	// Default: false.
+	SkipLoadErrors bool
 }
 
 // Option is the functional option type.
@@ -243,6 +272,13 @@ func ProtoPackage(protoPackage string) Option {
 func IgnoreUnknownFields() Option {
 	return func(opts *Options) {
 		opts.IgnoreUnknownFields = true
+	}
+}
+
+// SkipLoadErrors sets SkipLoadErrors option as true.
+func SkipLoadErrors() Option {
+	return func(opts *Options) {
+		opts.SkipLoadErrors = true
 	}
 }
 
