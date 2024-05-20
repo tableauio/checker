@@ -78,6 +78,8 @@ func (h *Hub) load(dir string, filter tableau.Filter, format format.Format, opti
 	}
 
 	var eg errgroup.Group
+	var errs []error
+	var errsMu sync.Mutex
 	for name, msger := range h.filteredCheckerMap {
 		name := name
 		msger := msger
@@ -85,6 +87,12 @@ func (h *Hub) load(dir string, filter tableau.Filter, format format.Format, opti
 			log.Infof("=== LOAD  %s", name)
 			if err := msger.Messager().Load(dir, format, loadOpts...); err != nil {
 				bookName, sheetName := getBookAndSheet(opts.ProtoPackage, name)
+				if opts.IgnoreLoadErrors {
+					errsMu.Lock()
+					errs = append(errs, fmt.Errorf("--- FAIL: workbook %s, worksheet %s, load failed: %+v\n", bookName, sheetName, err))
+					errsMu.Unlock()
+					return nil
+				}
 				return fmt.Errorf("error: workbook %s, worksheet %s, load failed: %+v\n", bookName, sheetName, err)
 			}
 			log.Infof("--- DONE: %v", name)
@@ -97,6 +105,9 @@ func (h *Hub) load(dir string, filter tableau.Filter, format format.Format, opti
 	}
 	if err := eg.Wait(); err != nil {
 		return err
+	}
+	if len(errs) != 0 {
+		log.Error(errors.Join(errs...))
 	}
 	h.SetMessagerMap(msgers)
 	return nil
@@ -185,7 +196,7 @@ func (h *Hub) Check(dir string, filter tableau.Filter, format format.Format, opt
 func (h *Hub) CheckCompatibility(dir, newDir string, filter tableau.Filter, format format.Format, options ...Option) error {
 	opts := ParseOptions(options...)
 	// load hub
-	if err := h.load(dir, filter, format, options...); err != nil {
+	if err := h.load(dir, filter, format, append(options, IgnoreLoadErrors())...); err != nil {
 		return err
 	}
 	// load new hub
@@ -213,6 +224,9 @@ type Options struct {
 	// Whether to ignore unknown JSON fields during parsing.
 	// Default: false.
 	IgnoreUnknownFields bool
+	// Whether to ignore errors during loading.
+	// Default: false.
+	IgnoreLoadErrors bool
 }
 
 // Option is the functional option type.
@@ -243,6 +257,13 @@ func ProtoPackage(protoPackage string) Option {
 func IgnoreUnknownFields() Option {
 	return func(opts *Options) {
 		opts.IgnoreUnknownFields = true
+	}
+}
+
+// IgnoreLoadErrors sets IgnoreLoadErrors option as true.
+func IgnoreLoadErrors() Option {
+	return func(opts *Options) {
+		opts.IgnoreLoadErrors = true
 	}
 }
 
