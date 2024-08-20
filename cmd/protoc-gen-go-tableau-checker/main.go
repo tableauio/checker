@@ -9,7 +9,7 @@ import (
 	"google.golang.org/protobuf/types/descriptorpb"
 )
 
-const version = "0.2.0"
+const version = "0.3.0"
 
 type Params struct {
 	pkg       string

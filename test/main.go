@@ -20,10 +20,7 @@ import (
 var protoPkg = "protoconf"
 var pathPrefix = ""
 
-type checkFilter struct {
-}
-
-func (cf *checkFilter) Filter(messagerName string) bool {
+func Filter(messagerName string) bool {
 	fullName := protoreflect.FullName(protoPkg + "." + messagerName)
 	mt, err := protoregistry.GlobalTypes.FindMessageByName(fullName)
 	if err != nil {
@@ -42,16 +39,20 @@ func main() {
 		Filename: "_logs/checker.log",
 		Sink:     "MULTI",
 	})
-	err1 := check.NewHub().Check("./testdata/", &checkFilter{}, format.JSON,
+	err1 := check.NewHub().Check("./testdata/", format.JSON,
 		check.BreakFailedCount(2),
-		check.IgnoreUnknownFields())
+		check.IgnoreUnknownFields(),
+		check.Filter(Filter),
+	)
 	if err1 != nil {
 		log.Errorf("check failed, see errors below:\n%s", xerrors.NewDesc(err1))
 		os.Exit(-1)
 	}
-	err2 := check.NewHub().CheckCompatibility("./testdata/", "./testdata1/", &checkFilter{}, format.JSON,
+	err2 := check.NewHub().CheckCompatibility("./testdata/", "./testdata1/", format.JSON,
 		check.BreakFailedCount(2),
-		check.IgnoreUnknownFields())
+		check.IgnoreUnknownFields(),
+		check.Filter(Filter),
+	)
 	if err2 != nil {
 		log.Errorf("check compatibility failed, see errors below:\n%s", xerrors.NewDesc(err2))
 		os.Exit(-1)

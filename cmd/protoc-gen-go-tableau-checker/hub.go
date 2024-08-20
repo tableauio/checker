@@ -58,11 +58,12 @@ func NewHub() *Hub {
 	}
 }
 
-func (h *Hub) load(dir string, filter tableau.Filter, format format.Format, options ...Option) error {
+func (h *Hub) load(dir string, format format.Format, options ...Option) error {
 	opts := ParseOptions(options...)
-	filteredCheckerMap := h.NewMessagerMap(filter)
+	filteredCheckerMap := h.NewMessagerMap(opts.Filter)
 	for name, gen := range registrarSingleton.Generators {
-		if filter == nil || filter.Filter(name) {
+		if opts.Filter == nil || opts.Filter(name) {
+			// overwride messager if registered
 			filteredCheckerMap[name] = gen()
 		}
 	}
@@ -183,10 +184,10 @@ func (h *Hub) checkCompatibility(newHub *tableau.Hub, protoPackage string, break
 	return errors.Join(errs...)
 }
 
-func (h *Hub) Check(dir string, filter tableau.Filter, format format.Format, options ...Option) error {
+func (h *Hub) Check(dir string, format format.Format, options ...Option) error {
 	opts := ParseOptions(options...)
 	// load hub
-	loadErr := h.load(dir, filter, format, options...)
+	loadErr := h.load(dir, format, options...)
 	if loadErr != nil && !opts.SkipLoadErrors {
 		return loadErr
 	}
@@ -194,16 +195,16 @@ func (h *Hub) Check(dir string, filter tableau.Filter, format format.Format, opt
 	return errors.Join(loadErr, checkErr)
 }
 
-func (h *Hub) CheckCompatibility(dir, newDir string, filter tableau.Filter, format format.Format, options ...Option) error {
+func (h *Hub) CheckCompatibility(dir, newDir string, format format.Format, options ...Option) error {
 	opts := ParseOptions(options...)
 	// load hub
-	loadErr := h.load(dir, filter, format, options...);
+	loadErr := h.load(dir, format, options...)
 	if loadErr != nil && !opts.SkipLoadErrors {
 		return loadErr
 	}
 	// load new hub
 	newHub := NewHub()
-	loadErr1 := newHub.load(newDir, filter, format, options...)
+	loadErr1 := newHub.load(newDir, format, options...)
 	if loadErr1 != nil && !opts.SkipLoadErrors {
 		return loadErr1
 	}
@@ -216,6 +217,11 @@ func register(gen tableau.MessagerGenerator) {
 }
 
 type Options struct {
+	// Filter can only filter in certain specific messagers based on the
+	// condition that you provide.
+	//
+	// Default: nil.
+	Filter load.FilterFunc
 	// Break check loop if failed count is equal to or more than BreakFailedCount.
 	//
 	// Default: 1.
@@ -246,6 +252,14 @@ type Options struct {
 
 // Option is the functional option type.
 type Option func(*Options)
+
+// Filter can only filter in certain specific messagers based on the
+// condition that you provide.
+func Filter(filter load.FilterFunc) Option {
+	return func(opts *Options) {
+		opts.Filter = filter
+	}
+}
 
 // BreakFailedCount sets BreakFailedCount option.
 func BreakFailedCount(count int) Option {
