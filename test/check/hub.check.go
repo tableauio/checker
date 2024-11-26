@@ -110,9 +110,20 @@ func getBookAndSheet(protoPackage, msgName string) (bookName string, sheetName s
 		log.Errorf("failed to find messager %s: %+v", fullName, err)
 		return "", ""
 	}
-	worksheet, _ := proto.GetExtension(mt.Descriptor().Options(), tableaupb.E_Worksheet).(*tableaupb.WorksheetOptions)
+
+	worksheet, ok := proto.GetExtension(mt.Descriptor().Options(), tableaupb.E_Worksheet).(*tableaupb.WorksheetOptions)
+	if !ok {
+		log.Errorf("messager %s does not belong to any worksheet", fullName)
+		return "", ""
+	}
+
 	fd := mt.Descriptor().ParentFile()
-	workbook, _ := proto.GetExtension(fd.Options(), tableaupb.E_Workbook).(*tableaupb.WorkbookOptions)
+	workbook, ok := proto.GetExtension(fd.Options(), tableaupb.E_Workbook).(*tableaupb.WorkbookOptions)
+	if !ok {
+		log.Errorf("messager %s does not belong to any workbook", fullName)
+		return "", ""
+	}
+
 	return workbook.GetName(), worksheet.GetName()
 }
 
