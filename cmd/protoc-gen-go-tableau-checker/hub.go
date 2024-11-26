@@ -33,7 +33,6 @@ const staticHubContent = `
 	"google.golang.org/protobuf/proto"
 	"google.golang.org/protobuf/reflect/protoreflect"
 	"google.golang.org/protobuf/reflect/protoregistry"
-	"google.golang.org/protobuf/types/descriptorpb"
 )
 
 var registrarSingleton *tableau.Registrar
@@ -58,7 +57,7 @@ func NewHub() *Hub {
 	}
 }
 
-func (h *Hub) load(dir string, format format.Format, options ...Option) error {
+func (h *Hub) load(dir string, f format.Format, options ...Option) error {
 	opts := ParseOptions(options...)
 	filteredCheckerMap := h.NewMessagerMap(opts.Filter)
 	for name, gen := range registrarSingleton.Generators {
@@ -74,6 +73,10 @@ func (h *Hub) load(dir string, format format.Format, options ...Option) error {
 
 	var loadOpts []load.Option
 	loadOpts = append(loadOpts, load.SubdirRewrites(opts.SubdirRewrites))
+	switch f {
+	case format.JSON, format.Bin, format.Text:
+		loadOpts = append(loadOpts, load.Paths(opts.Paths))
+	}	
 	if opts.IgnoreUnknownFields {
 		loadOpts = append(loadOpts, load.IgnoreUnknownFields())
 	}
@@ -86,7 +89,7 @@ func (h *Hub) load(dir string, format format.Format, options ...Option) error {
 		msger := msger
 		eg.Go(func() error {
 			log.Infof("=== LOAD  %s", name)
-			if err := msger.Messager().Load(dir, format, loadOpts...); err != nil {
+			if err := msger.Messager().Load(dir, f, loadOpts...); err != nil {
 				bookName, sheetName := getBookAndSheet(opts.ProtoPackage, name)
 				//lint:ignore ST1005 we want to prettify multiple error messages
 				err := fmt.Errorf("error: workbook %s, worksheet %s, load failed: %+v\n", bookName, sheetName, err)
@@ -120,13 +123,9 @@ func getBookAndSheet(protoPackage, msgName string) (bookName string, sheetName s
 		log.Errorf("failed to find messager %s: %+v", fullName, err)
 		return "", ""
 	}
-	mopts := mt.Descriptor().Options()
-	worksheet := proto.GetExtension(mopts, tableaupb.E_Worksheet).(*tableaupb.WorksheetOptions)
-
+	worksheet, _ := proto.GetExtension(mt.Descriptor().Options(), tableaupb.E_Worksheet).(*tableaupb.WorksheetOptions)
 	fd := mt.Descriptor().ParentFile()
-	opts := fd.Options().(*descriptorpb.FileOptions)
-	workbook := proto.GetExtension(opts, tableaupb.E_Workbook).(*tableaupb.WorkbookOptions)
-
+	workbook, _ := proto.GetExtension(fd.Options(), tableaupb.E_Workbook).(*tableaupb.WorkbookOptions)
 	return workbook.GetName(), worksheet.GetName()
 }
 
@@ -248,6 +247,14 @@ type Options struct {
 	//
 	// Default: false.
 	SkipLoadErrors bool
+	// Paths maps each messager name to a corresponding config file path.
+	// If specified, then the main messager will be parsed from the file
+	// directly, other than the specified load dir.
+	//
+	// NOTE: only JSON, Bin, and Text formats are supported.
+	//
+	// Default: nil.
+	Paths map[string]string
 }
 
 // Option is the functional option type.
@@ -293,6 +300,17 @@ func IgnoreUnknownFields() Option {
 func SkipLoadErrors() Option {
 	return func(opts *Options) {
 		opts.SkipLoadErrors = true
+	}
+}
+
+// Paths maps each messager name to a corresponding config file path.
+// If specified, then the main messager will be parsed from the file
+// directly, other than the specified load dir.
+//
+// NOTE: only JSON, Bin, and Text formats are supported.
+func Paths(paths map[string]string) Option {
+	return func(opts *Options) {
+		opts.Paths = paths
 	}
 }
 
