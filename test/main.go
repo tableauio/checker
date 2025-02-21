@@ -10,7 +10,6 @@ import (
 	"google.golang.org/protobuf/reflect/protoregistry"
 	"google.golang.org/protobuf/types/descriptorpb"
 
-	// check "github.com/tableauio/checker/test/devcheck"
 	"github.com/tableauio/tableau/format"
 	"github.com/tableauio/tableau/log"
 	"github.com/tableauio/tableau/proto/tableaupb"
