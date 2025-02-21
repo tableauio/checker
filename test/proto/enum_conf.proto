@@ -1,0 +1,20 @@
+syntax = "proto3";
+package protoconf;
+option go_package = "github.com/tableauio/checker/test/protoconf";
+
+import "tableau/protobuf/tableau.proto";
+
+option (tableau.workbook) = {
+  name : "Enum.xlsx"
+};
+
+enum ItemType {
+  option (tableau.etype) = {
+    name : "ItemType"
+  };
+
+  ITEM_TYPE_INVALID = 0;
+  ITEM_TYPE_FRUIT = 1 [ (tableau.evalue).name = "Fruit" ];
+  ITEM_TYPE_EQUIP = 2 [ (tableau.evalue).name = "Equip" ];
+  ITEM_TYPE_BOX = 3 [ (tableau.evalue).name = "Box" ];
+}

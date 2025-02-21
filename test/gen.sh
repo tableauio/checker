@@ -16,7 +16,7 @@ LOADER_OUT="${PROTOCONF_OUT}/tableau"
 CHECKER_PLUGIN_DIR="cmd/protoc-gen-go-tableau-checker"
 CHECKER_OUT="./test/check"
 
-export PATH="$PATH:$LOADER_PLUGIN_DIR:$CHECKER_PLUGIN_DIR"
+export PATH="$LOADER_PLUGIN_DIR:$CHECKER_PLUGIN_DIR:$PATH"
 
 # build
 cd $LOADER_PLUGIN_DIR && go build && cd -
