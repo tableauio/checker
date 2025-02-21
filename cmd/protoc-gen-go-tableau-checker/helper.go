@@ -4,11 +4,14 @@ import (
 	"fmt"
 	"os"
 
+	"github.com/tableauio/tableau/proto/tableaupb"
 	"google.golang.org/protobuf/compiler/protogen"
+	"google.golang.org/protobuf/proto"
+	"google.golang.org/protobuf/types/descriptorpb"
 )
 
 const checkExt = "check" // protoconf file extension
-const pbExt = "pb" // protobuf file extension
+const pbExt = "pb"       // protobuf file extension
 
 func generateFileHeader(gen *protogen.Plugin, file *protogen.File, g *protogen.GeneratedFile, doNotEdit bool) {
 	generateCommonHeader(gen, g, doNotEdit)
@@ -52,4 +55,25 @@ func Exists(path string) (bool, error) {
 		return false, nil
 	}
 	return false, err
+}
+
+func NeedGenFile(f *protogen.File) bool {
+	if !f.Generate {
+		return false
+	}
+
+	opts := f.Desc.Options().(*descriptorpb.FileOptions)
+	workbook := proto.GetExtension(opts, tableaupb.E_Workbook).(*tableaupb.WorkbookOptions)
+	if workbook == nil {
+		return false
+	}
+
+	for _, message := range f.Messages {
+		opts := message.Desc.Options().(*descriptorpb.MessageOptions)
+		worksheet := proto.GetExtension(opts, tableaupb.E_Worksheet).(*tableaupb.WorksheetOptions)
+		if worksheet != nil {
+			return true
+		}
+	}
+	return false
 }
