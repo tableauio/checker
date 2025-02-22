@@ -27,8 +27,7 @@ func main() {
 	protogen.Options{
 		ParamFunc: flags.Set,
 	}.Run(func(gen *protogen.Plugin) error {
-		p := gen.Request.GetParameter()
-		log.Infof("params:%s", p)
+		log.Infof("params:%+v", params)
 		gen.SupportedFeatures = uint64(pluginpb.CodeGeneratorResponse_FEATURE_PROTO3_OPTIONAL)
 		for _, f := range gen.Files {
 			if !NeedGenFile(f) {
