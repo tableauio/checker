@@ -2,12 +2,12 @@ package main
 
 import (
 	"bufio"
-	"fmt"
 	"os"
 	"path/filepath"
 	"regexp"
 	"strings"
 
+	"github.com/tableauio/tableau/log"
 	"github.com/tableauio/tableau/proto/tableaupb"
 	"google.golang.org/protobuf/compiler/protogen"
 	"google.golang.org/protobuf/proto"
@@ -35,7 +35,7 @@ func generateMessager(gen *protogen.Plugin, file *protogen.File) {
 	if err != nil {
 		panic(err)
 	}
-	fmt.Printf("filename:%s|path:%s|existed:%v\n", filename, path, existed)
+	log.Infof("filename:%s|path:%s|existed:%v", filename, path, existed)
 	if existed {
 		g := gen.NewGeneratedFile(filename, "")
 		generateFileHeader(gen, file, g, false)
