@@ -2,6 +2,7 @@ package main
 
 import (
 	"bufio"
+	"fmt"
 	"os"
 	"path/filepath"
 	"regexp"
@@ -34,6 +35,7 @@ func generateMessager(gen *protogen.Plugin, file *protogen.File) {
 	if err != nil {
 		panic(err)
 	}
+	fmt.Printf("filename:%s|path:%s|existed:%v\n", filename, path, existed)
 	if existed {
 		g := gen.NewGeneratedFile(filename, "")
 		generateFileHeader(gen, file, g, false)
