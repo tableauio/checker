@@ -3,6 +3,7 @@ package main
 import (
 	"flag"
 
+	"github.com/tableauio/tableau/log"
 	"google.golang.org/protobuf/compiler/protogen"
 	"google.golang.org/protobuf/types/pluginpb"
 )
@@ -23,7 +24,7 @@ func main() {
 	flags.StringVar(&params.loaderPkg, "loader-pkg", "tableau", "tableau loader package name")
 	flags.StringVar(&params.outdir, "out", "", "tableau checker output directory")
 	flag.Parse()
-
+	log.Infof("params:+%v", params)
 	protogen.Options{
 		ParamFunc: flags.Set,
 	}.Run(func(gen *protogen.Plugin) error {
