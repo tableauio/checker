@@ -24,10 +24,11 @@ func main() {
 	flags.StringVar(&params.loaderPkg, "loader-pkg", "tableau", "tableau loader package name")
 	flags.StringVar(&params.outdir, "out", "", "tableau checker output directory")
 	flag.Parse()
-	log.Infof("params:+%v", params)
 	protogen.Options{
 		ParamFunc: flags.Set,
 	}.Run(func(gen *protogen.Plugin) error {
+		p := gen.Request.GetParameter()
+		log.Infof("params:%s", p)
 		gen.SupportedFeatures = uint64(pluginpb.CodeGeneratorResponse_FEATURE_PROTO3_OPTIONAL)
 		for _, f := range gen.Files {
 			if !NeedGenFile(f) {
