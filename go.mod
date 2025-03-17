@@ -4,9 +4,9 @@ go 1.20
 
 require (
 	github.com/pkg/errors v0.9.1
-	github.com/tableauio/loader v0.1.0
-	github.com/tableauio/tableau v0.12.0
-	golang.org/x/sync v0.6.0
+	github.com/pmezard/go-difflib v1.0.0
+	github.com/tableauio/loader v0.1.1-0.20250317040654-e04454245a76
+	github.com/tableauio/tableau v0.12.2
 	google.golang.org/protobuf v1.34.2
 )
 
@@ -31,6 +31,7 @@ require (
 	golang.org/x/crypto v0.21.0 // indirect
 	golang.org/x/exp v0.0.0-20230418202329-0354be287a23 // indirect
 	golang.org/x/net v0.22.0 // indirect
+	golang.org/x/sync v0.6.0 // indirect
 	golang.org/x/text v0.14.0 // indirect
 	google.golang.org/genproto/googleapis/rpc v0.0.0-20231106174013-bbf56f31fb17 // indirect
 	gopkg.in/natefinch/lumberjack.v2 v2.2.1 // indirect

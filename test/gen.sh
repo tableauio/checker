@@ -5,8 +5,7 @@ set -e
 set -o pipefail
 
 cd "$(git rev-parse --show-toplevel)"
-# PROTOC="./third_party/_submodules/protobuf/src/protoc"
-PROTOC="protoc"
+PROTOC="./third_party/_submodules/protobuf/src/protoc"
 PROTOBUF_PROTO="./third_party/_submodules/protobuf/src"
 TABLEAU_PROTO="./third_party/_submodules/tableau/proto"
 PROTOCONF_IN="./test/proto"
@@ -28,13 +27,13 @@ mkdir -p "$PROTOCONF_OUT" "$LOADER_OUT" "$CHECKER_OUT"
 
 # generate protoconf files
 ${PROTOC} \
---go_out="$PROTOCONF_OUT" \
---go_opt=paths=source_relative \
---go-tableau-loader_out="$LOADER_OUT" \
---go-tableau-loader_opt=paths=source_relative \
---go-tableau-checker_out="$CHECKER_OUT" \
---go-tableau-checker_opt=paths=source_relative,out="$CHECKER_OUT" \
---proto_path="$PROTOBUF_PROTO" \
---proto_path="$TABLEAU_PROTO" \
---proto_path="$PROTOCONF_IN" \
-"$PROTOCONF_IN"/*
+    --go_out="$PROTOCONF_OUT" \
+    --go_opt=paths=source_relative \
+    --go-tableau-loader_out="$LOADER_OUT" \
+    --go-tableau-loader_opt=paths=source_relative \
+    --go-tableau-checker_out="$CHECKER_OUT" \
+    --go-tableau-checker_opt=paths=source_relative,out="$CHECKER_OUT" \
+    --proto_path="$PROTOBUF_PROTO" \
+    --proto_path="$TABLEAU_PROTO" \
+    --proto_path="$PROTOCONF_IN" \
+    "$PROTOCONF_IN"/*

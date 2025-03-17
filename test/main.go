@@ -5,15 +5,16 @@ import (
 	"strings"
 
 	"github.com/tableauio/checker/test/check"
+	"github.com/tableauio/checker/test/protoconf/tableau"
 	"google.golang.org/protobuf/proto"
 	"google.golang.org/protobuf/reflect/protoreflect"
 	"google.golang.org/protobuf/reflect/protoregistry"
 	"google.golang.org/protobuf/types/descriptorpb"
 
 	"github.com/tableauio/tableau/format"
+	"github.com/tableauio/tableau/load"
 	"github.com/tableauio/tableau/log"
 	"github.com/tableauio/tableau/proto/tableaupb"
-	"github.com/tableauio/tableau/xerrors"
 )
 
 var protoPkg = "protoconf"
@@ -38,22 +39,21 @@ func main() {
 		Filename: "_logs/checker.log",
 		Sink:     "MULTI",
 	})
-	err1 := check.NewHub().Check("./testdata/", format.JSON,
+	err1 := check.NewHub(tableau.Filter(Filter)).Check("./testdata/", format.JSON,
 		check.BreakFailedCount(2),
-		check.IgnoreUnknownFields(),
-		check.Filter(Filter),
+		check.WithLoadOptions(load.IgnoreUnknownFields()),
 	)
 	if err1 != nil {
-		log.Errorf("check failed, see errors below:\n%s", xerrors.NewDesc(err1))
+		log.Errorf("check failed, see errors below:\n%v", err1)
 		os.Exit(-1)
 	}
-	err2 := check.NewHub().CheckCompatibility("./testdata/", "./testdata1/", format.JSON,
+	err2 := check.NewHub(tableau.Filter(Filter)).CheckCompatibility("./testdata/", "./testdata1/", format.JSON,
+		check.SkipLoadErrors(),
 		check.BreakFailedCount(2),
-		check.IgnoreUnknownFields(),
-		check.Filter(Filter),
+		check.WithLoadOptions(load.IgnoreUnknownFields()),
 	)
 	if err2 != nil {
-		log.Errorf("check compatibility failed, see errors below:\n%s", xerrors.NewDesc(err2))
+		log.Errorf("check compatibility failed, see errors below:\n%v", err2)
 		os.Exit(-1)
 	}
 }
