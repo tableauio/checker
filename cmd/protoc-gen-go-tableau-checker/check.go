@@ -138,7 +138,7 @@ func generateRegister(messagers []string, g *protogen.GeneratedFile, incremental
 	g.P("func init() {")
 	g.P("// NOTE: This func is auto-generated. DO NOT EDIT.")
 	for _, messager := range messagers {
-		g.P("register(func() Checker {")
+		g.P("register(func() checker {")
 		g.P("return new(", messager, ")")
 		g.P("})")
 	}

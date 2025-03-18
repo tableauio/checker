@@ -66,13 +66,13 @@ func (x *ThemeConf) CheckCompatibility(hub, newHub *tableau.Hub) error {
 
 func init() {
 	// NOTE: This func is auto-generated. DO NOT EDIT.
-	register(func() Checker {
+	register(func() checker {
 		return new(ActivityConf)
 	})
-	register(func() Checker {
+	register(func() checker {
 		return new(ChapterConf)
 	})
-	register(func() Checker {
+	register(func() checker {
 		return new(ThemeConf)
 	})
 }

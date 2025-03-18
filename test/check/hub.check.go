@@ -22,19 +22,19 @@ import (
 	"google.golang.org/protobuf/reflect/protoregistry"
 )
 
-type Checker interface {
+type checker interface {
 	tableau.Messager
 	Messager() tableau.Messager
 	Check(hub *tableau.Hub) error
 	CheckCompatibility(hub, newHub *tableau.Hub) error
 }
 
-type CheckerGenerator = func() Checker
+type checkerGenerator = func() checker
 type registrar struct {
-	Generators map[string]CheckerGenerator
+	Generators map[string]checkerGenerator
 }
 
-func (r *registrar) Register(gen CheckerGenerator) {
+func (r *registrar) Register(gen checkerGenerator) {
 	if _, ok := r.Generators[gen().Name()]; ok {
 		panic("register duplicate checker: " + gen().Name())
 	}
@@ -47,25 +47,25 @@ var once sync.Once
 func getRegistrar() *registrar {
 	once.Do(func() {
 		registrarSingleton = &registrar{
-			Generators: map[string]CheckerGenerator{},
+			Generators: map[string]checkerGenerator{},
 		}
 	})
 	return registrarSingleton
 }
 
-func register(gen CheckerGenerator) {
+func register(gen checkerGenerator) {
 	getRegistrar().Register(gen)
 }
 
 type Hub struct {
 	*tableau.Hub
-	checkers map[string]Checker
+	checkers map[string]checker
 }
 
 func NewHub(options ...tableau.Option) *Hub {
 	return &Hub{
 		Hub:      tableau.NewHub(options...),
-		checkers: map[string]Checker{},
+		checkers: map[string]checker{},
 	}
 }
 
