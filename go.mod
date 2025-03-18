@@ -5,7 +5,7 @@ go 1.20
 require (
 	github.com/pkg/errors v0.9.1
 	github.com/pmezard/go-difflib v1.0.0
-	github.com/tableauio/loader v0.1.1-0.20250317040654-e04454245a76
+	github.com/tableauio/loader v0.1.1-0.20250318095359-d8f3e4f3922e
 	github.com/tableauio/tableau v0.12.3-0.20250318025602-136d97ae3dd2
 	google.golang.org/protobuf v1.34.2
 )
