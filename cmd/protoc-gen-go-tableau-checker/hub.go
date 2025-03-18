@@ -29,6 +29,7 @@ const staticHubContent = `
 	"github.com/tableauio/tableau/load"
 	"github.com/tableauio/tableau/log"
 	"github.com/tableauio/tableau/proto/tableaupb"
+	"github.com/tableauio/tableau/xerrors"
 	"google.golang.org/protobuf/proto"
 	"google.golang.org/protobuf/reflect/protoreflect"
 	"google.golang.org/protobuf/reflect/protoregistry"
@@ -86,7 +87,7 @@ func (h *Hub) load(loadType, protoPackage, dir string, f format.Format, options 
 			if err := msger.Messager().Load(dir, f, options...); err != nil {
 				bookName, sheetName := getBookAndSheet(protoPackage, name)
 				//lint:ignore ST1005 we want to prettify multiple error messages
-				err := fmt.Errorf("error: workbook %s, worksheet %s, load failed: %+v\n", bookName, sheetName, err)
+				err := fmt.Errorf("error: workbook %s, worksheet %s, load failed: %+v\n", bookName, sheetName, xerrors.NewDesc(err).ErrString(false))
 				mu.Lock()
 				errs = append(errs, err)
 				mu.Unlock()
@@ -132,23 +133,14 @@ func (h *Hub) check(protoPackage string, breakFailedCount int) error {
 	var errs []error
 	for name, checker := range h.filteredCheckerMap {
 		log.Infof("=== RUN   %v", name)
-		// built-in auto-generated check logic
-		err1 := checker.Messager().Check(h.Hub)
 		// custom check logic
-		err2 := checker.Check(h.Hub)
-		if err1 != nil || err2 != nil {
+		err := checker.Check(h.Hub)
+		if err != nil {
 			bookName, sheetName := getBookAndSheet(protoPackage, name)
 			log.Errorf("--- FAIL: workbook %s, worksheet %s", bookName, sheetName)
-			if err1 != nil {
-				//lint:ignore ST1005 we want to prettify multiple error messages
-				err := fmt.Errorf("error: workbook %s, worksheet %s, builtin check failed: %+v\n", bookName, sheetName, err1)
-				errs = append(errs, err)
-			}
-			if err2 != nil {
-				//lint:ignore ST1005 we want to prettify multiple error messages
-				err := fmt.Errorf("error: workbook %s, worksheet %s, custom check failed: %+v\n", bookName, sheetName, err2)
-				errs = append(errs, err)
-			}
+			//lint:ignore ST1005 we want to prettify multiple error messages
+			err := fmt.Errorf("error: workbook %s, worksheet %s, custom check failed: %+v\n", bookName, sheetName, err)
+			errs = append(errs, err)
 		} else {
 			log.Infof("--- PASS: %v", name)
 		}
@@ -162,6 +154,10 @@ func (h *Hub) check(protoPackage string, breakFailedCount int) error {
 func (h *Hub) checkCompatibility(newHub *tableau.Hub, protoPackage string, breakFailedCount int) error {
 	var errs []error
 	for name, checker := range h.filteredCheckerMap {
+		if h.GetMessager(name) == nil || newHub.GetMessager(name) == nil {
+			log.Infof("=== SKIP  %v", name)
+			continue
+		}
 		log.Infof("=== RUN   %v", name)
 		// custom check logic
 		err := checker.CheckCompatibility(h.Hub, newHub)
@@ -185,12 +181,11 @@ func (h *Hub) checkCompatibility(newHub *tableau.Hub, protoPackage string, break
 func (h *Hub) Check(dir string, format format.Format, options ...Option) error {
 	opts := ParseOptions(options...)
 	// load hub
-	loadErr := h.load(loadTypeDefault, opts.ProtoPackage, dir, format, opts.LoadOptions...)
-	if loadErr != nil && !opts.SkipLoadErrors {
-		return loadErr
+	err := h.load(loadTypeDefault, opts.ProtoPackage, dir, format, opts.LoadOptions...)
+	if err != nil {
+		return err
 	}
-	checkErr := h.check(opts.ProtoPackage, opts.BreakFailedCount)
-	return errors.Join(loadErr, checkErr)
+	return h.check(opts.ProtoPackage, opts.BreakFailedCount)
 }
 
 func (h *Hub) CheckCompatibility(dir, newDir string, format format.Format, options ...Option) error {

@@ -9,7 +9,6 @@ package check
 import (
 	"github.com/pkg/errors"
 	tableau "github.com/tableauio/checker/test/protoconf/tableau"
-	"github.com/tableauio/tableau/log"
 )
 
 type ItemConf struct {
@@ -23,9 +22,9 @@ func (x *ItemConf) Check(hub *tableau.Hub) error {
 
 func (x *ItemConf) CheckCompatibility(hub, newHub *tableau.Hub) error {
 	// TODO: implement here.
-	log.Infof("old: %v\n", x.Data())
-	log.Infof("new: %v\n", newHub.GetItemConf().Data())
-	return errors.Errorf("id missing: 1")
+	// log.Infof("old: %v\n", x.Data())
+	// log.Infof("new: %v\n", newHub.GetItemConf().Data())
+	return errors.Errorf("some custom errors")
 }
 
 func init() {
