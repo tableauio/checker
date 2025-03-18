@@ -15,6 +15,10 @@ type ItemConf struct {
 	tableau.ItemConf
 }
 
+func (x *ItemConf) Messager() tableau.Messager {
+	return &x.ItemConf
+}
+
 func (x *ItemConf) Check(hub *tableau.Hub) error {
 	// TODO: implement here.
 	return nil
@@ -29,7 +33,7 @@ func (x *ItemConf) CheckCompatibility(hub, newHub *tableau.Hub) error {
 
 func init() {
 	// NOTE: This func is auto-generated. DO NOT EDIT.
-	register(func() tableau.Messager {
+	Register(func() Checker {
 		return new(ItemConf)
 	})
 }

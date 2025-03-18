@@ -14,6 +14,10 @@ type ActivityConf struct {
 	tableau.ActivityConf
 }
 
+func (x *ActivityConf) Messager() tableau.Messager {
+	return &x.ActivityConf
+}
+
 func (x *ActivityConf) Check(hub *tableau.Hub) error {
 	// TODO: implement here.
 	return nil
@@ -26,6 +30,10 @@ func (x *ActivityConf) CheckCompatibility(hub, newHub *tableau.Hub) error {
 
 type ChapterConf struct {
 	tableau.ChapterConf
+}
+
+func (x *ChapterConf) Messager() tableau.Messager {
+	return &x.ChapterConf
 }
 
 func (x *ChapterConf) Check(hub *tableau.Hub) error {
@@ -42,6 +50,10 @@ type ThemeConf struct {
 	tableau.ThemeConf
 }
 
+func (x *ThemeConf) Messager() tableau.Messager {
+	return &x.ThemeConf
+}
+
 func (x *ThemeConf) Check(hub *tableau.Hub) error {
 	// TODO: implement here.
 	return nil
@@ -54,13 +66,13 @@ func (x *ThemeConf) CheckCompatibility(hub, newHub *tableau.Hub) error {
 
 func init() {
 	// NOTE: This func is auto-generated. DO NOT EDIT.
-	register(func() tableau.Messager {
+	Register(func() Checker {
 		return new(ActivityConf)
 	})
-	register(func() tableau.Messager {
+	Register(func() Checker {
 		return new(ChapterConf)
 	})
-	register(func() tableau.Messager {
+	Register(func() Checker {
 		return new(ThemeConf)
 	})
 }

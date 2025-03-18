@@ -35,25 +35,55 @@ const staticHubContent = `
 	"google.golang.org/protobuf/reflect/protoregistry"
 )
 
-var registrarSingleton *tableau.Registrar
+type Checker interface {
+	tableau.Messager
+	Messager() tableau.Messager
+	Check(hub *tableau.Hub) error
+	CheckCompatibility(hub, newHub *tableau.Hub) error
+}
+
+type CheckerMap = map[string]Checker
+type CheckerGenerator = func() Checker
+type Registrar struct {
+	Generators map[string]CheckerGenerator
+}
+
+func NewRegistrar() *Registrar {
+	return &Registrar{
+		Generators: map[string]CheckerGenerator{},
+	}
+}
+
+func (r *Registrar) Register(gen CheckerGenerator) {
+	if _, ok := r.Generators[gen().Name()]; ok {
+		panic("register duplicate checker: " + gen().Name())
+	}
+	r.Generators[gen().Name()] = gen
+}
+
+var registrarSingleton *Registrar
 var once sync.Once
 
-func getRegistrar() *tableau.Registrar {
+func getRegistrar() *Registrar {
 	once.Do(func() {
-		registrarSingleton = tableau.NewRegistrar()
+		registrarSingleton = NewRegistrar()
 	})
 	return registrarSingleton
 }
 
+func Register(gen CheckerGenerator) {
+	getRegistrar().Register(gen)
+}
+
 type Hub struct {
 	*tableau.Hub
-	filteredCheckerMap tableau.MessagerMap
+	filteredCheckerMap CheckerMap
 }
 
 func NewHub(options ...tableau.Option) *Hub {
 	return &Hub{
 		Hub:                tableau.NewHub(options...),
-		filteredCheckerMap: tableau.MessagerMap{},
+		filteredCheckerMap: CheckerMap{},
 	}
 }
 
@@ -64,12 +94,9 @@ const (
 )
 
 func (h *Hub) load(loadType, protoPackage, dir string, f format.Format, options ...load.Option) error {
-	for name, messager := range h.NewMessagerMap() {
+	for name := range h.NewMessagerMap() {
 		if gen, ok := registrarSingleton.Generators[name]; ok {
-			// override messager if registered
 			h.filteredCheckerMap[name] = gen()
-		} else {
-			h.filteredCheckerMap[name] = messager
 		}
 	}
 
@@ -77,14 +104,14 @@ func (h *Hub) load(loadType, protoPackage, dir string, f format.Format, options 
 	msgers := tableau.MessagerMap{}
 	var errs []error
 	var wg sync.WaitGroup
-	for name, msger := range h.filteredCheckerMap {
+	for name, checker := range h.filteredCheckerMap {
 		wg.Add(1)
 		name := name
-		msger := msger
+		checker := checker
 		go func() {
 			defer wg.Done()
 			log.Infof("=== LOAD  %v%v", name, loadType)
-			if err := msger.Messager().Load(dir, f, options...); err != nil {
+			if err := checker.Messager().Load(dir, f, options...); err != nil {
 				bookName, sheetName := getBookAndSheet(protoPackage, name)
 				//lint:ignore ST1005 we want to prettify multiple error messages
 				err := fmt.Errorf("error: workbook %s, worksheet %s, load failed: %+v\n", bookName, sheetName, xerrors.NewDesc(err).ErrString(false))
@@ -94,7 +121,7 @@ func (h *Hub) load(loadType, protoPackage, dir string, f format.Format, options 
 				log.Infof("--- FAIL: %v%v", name, loadType)
 			} else {
 				mu.Lock()
-				msgers[name] = msger.Messager()
+				msgers[name] = checker.Messager()
 				mu.Unlock()
 				log.Infof("--- DONE: %v%v", name, loadType)
 			}
@@ -206,10 +233,6 @@ func (h *Hub) CheckCompatibility(dir, newDir string, format format.Format, optio
 	return errors.Join(loadErr, loadErr1, checkErr)
 }
 
-func register(gen tableau.MessagerGenerator) {
-	getRegistrar().Register(gen)
-}
-
 type Options struct {
 	// Break check loop if failed count is equal to or more than BreakFailedCount.
 	//
@@ -286,4 +309,5 @@ func ParseOptions(setters ...Option) *Options {
 	}
 	return opts
 }
+
 `
