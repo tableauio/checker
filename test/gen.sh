@@ -31,9 +31,15 @@ ${PROTOC} \
     --go_opt=paths=source_relative \
     --go-tableau-loader_out="$LOADER_OUT" \
     --go-tableau-loader_opt=paths=source_relative \
+    --proto_path="$PROTOBUF_PROTO" \
+    --proto_path="$TABLEAU_PROTO" \
+    --proto_path="$PROTOCONF_IN" \
+    "$PROTOCONF_IN"/*
+
+${PROTOC} \
     --go-tableau-checker_out="$CHECKER_OUT" \
     --go-tableau-checker_opt=paths=source_relative,out="$CHECKER_OUT" \
     --proto_path="$PROTOBUF_PROTO" \
     --proto_path="$TABLEAU_PROTO" \
     --proto_path="$PROTOCONF_IN" \
-    "$PROTOCONF_IN"/*
+    "$PROTOCONF_IN"/test_conf.proto

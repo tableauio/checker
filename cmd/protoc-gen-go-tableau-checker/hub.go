@@ -94,24 +94,23 @@ const (
 )
 
 func (h *Hub) load(loadType, protoPackage, dir string, f format.Format, options ...load.Option) error {
-	for name := range h.NewMessagerMap() {
-		if gen, ok := registrarSingleton.Generators[name]; ok {
-			h.filteredCheckerMap[name] = gen()
-		}
-	}
-
 	var mu sync.Mutex
 	msgers := tableau.MessagerMap{}
 	var errs []error
 	var wg sync.WaitGroup
-	for name, checker := range h.filteredCheckerMap {
-		wg.Add(1)
+	for name, msger := range h.NewMessagerMap() {
 		name := name
-		checker := checker
+		msger := msger
+		if gen, ok := registrarSingleton.Generators[name]; ok {
+			checker := gen()
+			h.filteredCheckerMap[name] = checker
+			msger = checker.Messager()
+		}
+		wg.Add(1)
 		go func() {
 			defer wg.Done()
 			log.Infof("=== LOAD  %v%v", name, loadType)
-			if err := checker.Messager().Load(dir, f, options...); err != nil {
+			if err := msger.Load(dir, f, options...); err != nil {
 				bookName, sheetName := getBookAndSheet(protoPackage, name)
 				//lint:ignore ST1005 we want to prettify multiple error messages
 				err := fmt.Errorf("error: workbook %s, worksheet %s, load failed: %+v\n", bookName, sheetName, xerrors.NewDesc(err).ErrString(false))
@@ -121,7 +120,7 @@ func (h *Hub) load(loadType, protoPackage, dir string, f format.Format, options 
 				log.Infof("--- FAIL: %v%v", name, loadType)
 			} else {
 				mu.Lock()
-				msgers[name] = checker.Messager()
+				msgers[name] = msger
 				mu.Unlock()
 				log.Infof("--- DONE: %v%v", name, loadType)
 			}

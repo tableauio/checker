@@ -8,6 +8,7 @@ package check
 
 import (
 	tableau "github.com/tableauio/checker/test/protoconf/tableau"
+	"github.com/tableauio/tableau/log"
 )
 
 type ActivityConf struct {
@@ -24,7 +25,9 @@ func (x *ActivityConf) Check(hub *tableau.Hub) error {
 }
 
 func (x *ActivityConf) CheckCompatibility(hub, newHub *tableau.Hub) error {
-	// TODO: implement here.
+	log.Infof("ItemConf is correctly loaded even it's checker is not regitstered")
+	log.Infof("old: %v\n", hub.GetItemConf().Data())
+	log.Infof("new: %v\n", newHub.GetItemConf().Data())
 	return nil
 }
 
@@ -42,7 +45,7 @@ func (x *ChapterConf) Check(hub *tableau.Hub) error {
 }
 
 func (x *ChapterConf) CheckCompatibility(hub, newHub *tableau.Hub) error {
-	// TODO: implement here.
+	log.Infof("Should not reach here since ChapterConf is not successfully loaded")
 	return nil
 }
 
@@ -60,7 +63,7 @@ func (x *ThemeConf) Check(hub *tableau.Hub) error {
 }
 
 func (x *ThemeConf) CheckCompatibility(hub, newHub *tableau.Hub) error {
-	// TODO: implement here.
+	log.Infof("Should not reach here since ThemeConf is not successfully loaded")
 	return nil
 }
 
