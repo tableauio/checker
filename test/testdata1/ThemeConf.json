@@ -6,7 +6,7 @@
         },
         "theme2": {
             "name": "theme2",
-            "value": 1
+            "value": "invalid-type-not-integer"
         }
     }
 }

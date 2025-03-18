@@ -137,14 +137,8 @@ func generateRegister(messagers []string, g *protogen.GeneratedFile, incremental
 	// register messagers
 	g.P("func init() {")
 	g.P("// NOTE: This func is auto-generated. DO NOT EDIT.")
-	var msgTypeIdent any
-	if incremental {
-		msgTypeIdent = params.loaderPkg + ".Messager"
-	} else {
-		msgTypeIdent = loaderImportPath.Ident("Messager")
-	}
 	for _, messager := range messagers {
-		g.P(`register(func() `, msgTypeIdent, ` {`)
+		g.P("register(func() checker {")
 		g.P("return new(", messager, ")")
 		g.P("})")
 	}
@@ -163,12 +157,19 @@ func genMessage(gen *protogen.Plugin, file *protogen.File, g *protogen.Generated
 	g.P("}")
 	g.P()
 
-	var hubTypeIdent any
+	var msgerTypeIdent, hubTypeIdent any
 	if incremental {
+		msgerTypeIdent = params.loaderPkg + ".Messager"
 		hubTypeIdent = params.loaderPkg + ".Hub"
 	} else {
+		msgerTypeIdent = loaderImportPath.Ident("Messager")
 		hubTypeIdent = loaderImportPath.Ident("Hub")
 	}
+	g.P("func (x *", messagerName, ") Messager() ", msgerTypeIdent, " {")
+	g.P("return &x.", messagerName)
+	g.P("}")
+	g.P()
+
 	g.P("func (x *", messagerName, ") Check(hub *", hubTypeIdent, ") error {")
 	g.P("// TODO: implement here.")
 	g.P("return nil")
