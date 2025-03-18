@@ -42,4 +42,4 @@ ${PROTOC} \
     --proto_path="$PROTOBUF_PROTO" \
     --proto_path="$TABLEAU_PROTO" \
     --proto_path="$PROTOCONF_IN" \
-    "$PROTOCONF_IN"/test_conf.proto
+    "$PROTOCONF_IN"/test_conf.proto # Intended for testing: DO NOT generate "*.check.go" for item_conf.proto

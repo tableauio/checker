@@ -7,8 +7,9 @@
 package check
 
 import (
+	"fmt"
+
 	tableau "github.com/tableauio/checker/test/protoconf/tableau"
-	"github.com/tableauio/tableau/log"
 )
 
 type ActivityConf struct {
@@ -25,10 +26,8 @@ func (x *ActivityConf) Check(hub *tableau.Hub) error {
 }
 
 func (x *ActivityConf) CheckCompatibility(hub, newHub *tableau.Hub) error {
-	log.Infof("ItemConf is correctly loaded even it's checker is not regitstered")
-	log.Infof("old: %v\n", hub.GetItemConf().Data())
-	log.Infof("new: %v\n", newHub.GetItemConf().Data())
-	return nil
+	return fmt.Errorf("load ItemConf successfully even it's checker is not registered\n\nItemConf(old): %v\n\nItemConf(new): %v",
+		hub.GetItemConf().Data(), newHub.GetItemConf().Data())
 }
 
 type ChapterConf struct {
@@ -45,8 +44,7 @@ func (x *ChapterConf) Check(hub *tableau.Hub) error {
 }
 
 func (x *ChapterConf) CheckCompatibility(hub, newHub *tableau.Hub) error {
-	log.Infof("Should not reach here since ChapterConf is not successfully loaded")
-	return nil
+	return fmt.Errorf("should not reach here since ChapterConf is not successfully loaded")
 }
 
 type ThemeConf struct {
@@ -63,19 +61,18 @@ func (x *ThemeConf) Check(hub *tableau.Hub) error {
 }
 
 func (x *ThemeConf) CheckCompatibility(hub, newHub *tableau.Hub) error {
-	log.Infof("Should not reach here since ThemeConf is not successfully loaded")
-	return nil
+	return fmt.Errorf("should not reach here since ThemeConf is not successfully loaded")
 }
 
 func init() {
 	// NOTE: This func is auto-generated. DO NOT EDIT.
-	Register(func() Checker {
+	register(func() Checker {
 		return new(ActivityConf)
 	})
-	Register(func() Checker {
+	register(func() Checker {
 		return new(ChapterConf)
 	})
-	Register(func() Checker {
+	register(func() Checker {
 		return new(ThemeConf)
 	})
 }

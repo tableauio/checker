@@ -29,48 +29,43 @@ type Checker interface {
 	CheckCompatibility(hub, newHub *tableau.Hub) error
 }
 
-type CheckerMap = map[string]Checker
 type CheckerGenerator = func() Checker
-type Registrar struct {
+type registrar struct {
 	Generators map[string]CheckerGenerator
 }
 
-func NewRegistrar() *Registrar {
-	return &Registrar{
-		Generators: map[string]CheckerGenerator{},
-	}
-}
-
-func (r *Registrar) Register(gen CheckerGenerator) {
+func (r *registrar) Register(gen CheckerGenerator) {
 	if _, ok := r.Generators[gen().Name()]; ok {
 		panic("register duplicate checker: " + gen().Name())
 	}
 	r.Generators[gen().Name()] = gen
 }
 
-var registrarSingleton *Registrar
+var registrarSingleton *registrar
 var once sync.Once
 
-func getRegistrar() *Registrar {
+func getRegistrar() *registrar {
 	once.Do(func() {
-		registrarSingleton = NewRegistrar()
+		registrarSingleton = &registrar{
+			Generators: map[string]CheckerGenerator{},
+		}
 	})
 	return registrarSingleton
 }
 
-func Register(gen CheckerGenerator) {
+func register(gen CheckerGenerator) {
 	getRegistrar().Register(gen)
 }
 
 type Hub struct {
 	*tableau.Hub
-	filteredCheckerMap CheckerMap
+	checkers map[string]Checker
 }
 
 func NewHub(options ...tableau.Option) *Hub {
 	return &Hub{
-		Hub:                tableau.NewHub(options...),
-		filteredCheckerMap: CheckerMap{},
+		Hub:      tableau.NewHub(options...),
+		checkers: map[string]Checker{},
 	}
 }
 
@@ -90,7 +85,7 @@ func (h *Hub) load(loadType, protoPackage, dir string, f format.Format, options 
 		msger := msger
 		if gen, ok := registrarSingleton.Generators[name]; ok {
 			checker := gen()
-			h.filteredCheckerMap[name] = checker
+			h.checkers[name] = checker
 			msger = checker.Messager()
 		}
 		wg.Add(1)
@@ -144,7 +139,7 @@ func getBookAndSheet(protoPackage, msgName string) (bookName string, sheetName s
 
 func (h *Hub) check(protoPackage string, breakFailedCount int) error {
 	var errs []error
-	for name, checker := range h.filteredCheckerMap {
+	for name, checker := range h.checkers {
 		log.Infof("=== RUN   %v", name)
 		// custom check logic
 		err := checker.Check(h.Hub)
@@ -166,7 +161,7 @@ func (h *Hub) check(protoPackage string, breakFailedCount int) error {
 
 func (h *Hub) checkCompatibility(newHub *tableau.Hub, protoPackage string, breakFailedCount int) error {
 	var errs []error
-	for name, checker := range h.filteredCheckerMap {
+	for name, checker := range h.checkers {
 		if h.GetMessager(name) == nil || newHub.GetMessager(name) == nil {
 			log.Infof("=== SKIP  %v", name)
 			continue
