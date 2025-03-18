@@ -157,18 +157,12 @@ func genMessage(gen *protogen.Plugin, file *protogen.File, g *protogen.Generated
 	g.P("}")
 	g.P()
 
-	var msgerTypeIdent, hubTypeIdent any
+	var hubTypeIdent any
 	if incremental {
-		msgerTypeIdent = params.loaderPkg + ".Messager"
 		hubTypeIdent = params.loaderPkg + ".Hub"
 	} else {
-		msgerTypeIdent = loaderImportPath.Ident("Messager")
 		hubTypeIdent = loaderImportPath.Ident("Hub")
 	}
-	g.P("func (x *", messagerName, ") Messager() ", msgerTypeIdent, " {")
-	g.P("return &x.", messagerName)
-	g.P("}")
-	g.P()
 
 	g.P("func (x *", messagerName, ") Check(hub *", hubTypeIdent, ") error {")
 	g.P("// TODO: implement here.")

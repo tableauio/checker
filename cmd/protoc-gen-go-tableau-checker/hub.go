@@ -37,7 +37,6 @@ const staticHubContent = `
 
 type checker interface {
 	tableau.Messager
-	Messager() tableau.Messager
 	Check(hub *tableau.Hub) error
 	CheckCompatibility(hub, newHub *tableau.Hub) error
 }
