@@ -92,6 +92,7 @@ func (h *Hub) load(loadType, protoPackage, dir string, f format.Format, options 
 	msgers := tableau.MessagerMap{}
 	var errs []error
 	var wg sync.WaitGroup
+	opts := load.ParseOptions(options...)
 	for name, msger := range h.NewMessagerMap() {
 		name := name
 		msger := msger
@@ -104,7 +105,8 @@ func (h *Hub) load(loadType, protoPackage, dir string, f format.Format, options 
 		go func() {
 			defer wg.Done()
 			log.Infof("=== LOAD  %v%v", name, loadType)
-			if err := msger.Load(dir, f, options...); err != nil {
+			mopts := load.ParseMessagerOptionsFromOptions(opts, name)
+			if err := msger.Load(dir, f, mopts); err != nil {
 				bookName, sheetName := getBookAndSheet(protoPackage, name)
 				//lint:ignore ST1005 we want to prettify multiple error messages
 				err := fmt.Errorf("error: workbook %s, worksheet %s, load failed: %+v\n", bookName, sheetName, xerrors.NewDesc(err).ErrString(false))
