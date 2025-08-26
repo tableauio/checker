@@ -92,7 +92,7 @@ func (h *Hub) load(loadType, protoPackage, dir string, f format.Format, options 
 		go func() {
 			defer wg.Done()
 			log.Infof("=== LOAD  %v%v", name, loadType)
-			mopts := load.ParseMessagerOptionsFromOptions(opts, name)
+			mopts := opts.ParseMessagerOptionsByName(name)
 			if err := msger.Load(dir, f, mopts); err != nil {
 				bookName, sheetName := getBookAndSheet(protoPackage, name)
 				//lint:ignore ST1005 we want to prettify multiple error messages
