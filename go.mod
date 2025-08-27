@@ -7,8 +7,8 @@ toolchain go1.24.5
 require (
 	github.com/pkg/errors v0.9.1
 	github.com/pmezard/go-difflib v1.0.0
-	github.com/tableauio/loader v0.3.1-0.20250826071838-9387b0168229
-	github.com/tableauio/tableau v0.14.2-0.20250826065333-c81bc5f5966e
+	github.com/tableauio/loader v0.4.0
+	github.com/tableauio/tableau v0.14.2
 	google.golang.org/protobuf v1.36.6
 )
 
