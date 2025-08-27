@@ -7,7 +7,7 @@ import (
 	"google.golang.org/protobuf/types/pluginpb"
 )
 
-const version = "0.6.1"
+const version = "0.6.2"
 
 type Params struct {
 	pkg       string
