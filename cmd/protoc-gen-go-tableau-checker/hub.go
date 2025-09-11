@@ -70,14 +70,14 @@ func register(gen checkerGenerator) {
 }
 
 type Hub struct {
-	*tableau.Hub
+	*tableau.ContainerHub
 	checkers map[string]checker
 }
 
 func NewHub(options ...tableau.Option) *Hub {
 	return &Hub{
-		Hub:      tableau.NewHub(options...),
-		checkers: map[string]checker{},
+		ContainerHub: tableau.NewHub(options...),
+		checkers:     map[string]checker{},
 	}
 }
 
@@ -224,7 +224,7 @@ func (h *Hub) CheckCompatibility(dir, newDir string, format format.Format, optio
 	if loadErr1 != nil && !opts.SkipLoadErrors {
 		return loadErr1
 	}
-	checkErr := h.checkCompatibility(newHub, opts.ProtoPackage, opts.BreakFailedCount)
+	checkErr := h.checkCompatibility(newHub.Hub, opts.ProtoPackage, opts.BreakFailedCount)
 	return errors.Join(loadErr, loadErr1, checkErr)
 }
 
