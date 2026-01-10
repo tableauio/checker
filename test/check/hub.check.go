@@ -10,6 +10,7 @@ import (
 
 	"errors"
 	"fmt"
+	"strings"
 	"sync"
 
 	"github.com/tableauio/tableau/format"
@@ -94,9 +95,9 @@ func (h *Hub) load(loadType, protoPackage, dir string, f format.Format, options 
 			log.Infof("=== LOAD  %v%v", name, loadType)
 			mopts := opts.ParseMessagerOptionsByName(name)
 			if err := msger.Load(dir, f, mopts); err != nil {
-				bookName, sheetName := getBookAndSheet(protoPackage, name)
+				workbook, worksheet := getBookAndSheet(protoPackage, name)
 				//lint:ignore ST1005 we want to prettify multiple error messages
-				err := fmt.Errorf("error: workbook %s, worksheet %s, load failed: %+v\n", bookName, sheetName, xerrors.NewDesc(err).ErrString(false))
+				err := fmt.Errorf("error: %s, load failed: %+v\n", formatBookSheetInfo(workbook, worksheet), xerrors.NewDesc(err).ErrString(false))
 				mu.Lock()
 				errs = append(errs, err)
 				mu.Unlock()
@@ -114,28 +115,39 @@ func (h *Hub) load(loadType, protoPackage, dir string, f format.Format, options 
 	return errors.Join(errs...)
 }
 
-func getBookAndSheet(protoPackage, msgName string) (bookName string, sheetName string) {
+func getBookAndSheet(protoPackage, msgName string) (*tableaupb.WorkbookOptions, *tableaupb.WorksheetOptions) {
 	fullName := protoreflect.FullName(protoPackage + "." + msgName)
 	mt, err := protoregistry.GlobalTypes.FindMessageByName(fullName)
 	if err != nil {
 		log.Errorf("failed to find messager %s: %+v", fullName, err)
-		return "", ""
+		return nil, nil
 	}
 
 	worksheet, ok := proto.GetExtension(mt.Descriptor().Options(), tableaupb.E_Worksheet).(*tableaupb.WorksheetOptions)
 	if !ok {
 		log.Errorf("messager %s does not belong to any worksheet", fullName)
-		return "", ""
+		return nil, nil
 	}
 
 	fd := mt.Descriptor().ParentFile()
 	workbook, ok := proto.GetExtension(fd.Options(), tableaupb.E_Workbook).(*tableaupb.WorkbookOptions)
 	if !ok {
 		log.Errorf("messager %s does not belong to any workbook", fullName)
-		return "", ""
+		return nil, nil
 	}
 
-	return workbook.GetName(), worksheet.GetName()
+	return workbook, worksheet
+}
+
+func formatBookSheetInfo(workbook *tableaupb.WorkbookOptions, worksheet *tableaupb.WorksheetOptions) string {
+	parts := []string{fmt.Sprintf("workbook %s, worksheet %s", workbook.GetName(), worksheet.GetName())}
+	if len(worksheet.GetMerger()) > 0 {
+		parts = append(parts, fmt.Sprintf("merger %s", strings.Join(worksheet.GetMerger(), ";")))
+	}
+	if len(worksheet.GetScatter()) > 0 {
+		parts = append(parts, fmt.Sprintf("scatter %s", strings.Join(worksheet.GetScatter(), ";")))
+	}
+	return strings.Join(parts, ", ")
 }
 
 func (h *Hub) check(protoPackage string, breakFailedCount int) error {
@@ -145,10 +157,10 @@ func (h *Hub) check(protoPackage string, breakFailedCount int) error {
 		// custom check logic
 		err := checker.Check(h.Hub)
 		if err != nil {
-			bookName, sheetName := getBookAndSheet(protoPackage, name)
-			log.Errorf("--- FAIL: workbook %s, worksheet %s", bookName, sheetName)
+			workbook, worksheet := getBookAndSheet(protoPackage, name)
+			log.Errorf("--- FAIL: %s", formatBookSheetInfo(workbook, worksheet))
 			//lint:ignore ST1005 we want to prettify multiple error messages
-			err := fmt.Errorf("error: workbook %s, worksheet %s, custom check failed: %+v\n", bookName, sheetName, err)
+			err := fmt.Errorf("error: %s, custom check failed: %+v\n", formatBookSheetInfo(workbook, worksheet), err)
 			errs = append(errs, err)
 		} else {
 			log.Infof("--- PASS: %v", name)
@@ -171,10 +183,10 @@ func (h *Hub) checkCompatibility(newHub *tableau.Hub, protoPackage string, break
 		// custom check logic
 		err := checker.CheckCompatibility(h.Hub, newHub)
 		if err != nil {
-			bookName, sheetName := getBookAndSheet(protoPackage, name)
-			log.Errorf("--- FAIL: workbook %s, worksheet %s", bookName, sheetName)
+			workbook, worksheet := getBookAndSheet(protoPackage, name)
+			log.Errorf("--- FAIL: %s", formatBookSheetInfo(workbook, worksheet))
 			//lint:ignore ST1005 we want to prettify multiple error messages
-			err := fmt.Errorf("error: workbook %s, worksheet %s, custom check failed: %+v\n", bookName, sheetName, err)
+			err := fmt.Errorf("error: %s, custom check failed: %+v\n", formatBookSheetInfo(workbook, worksheet), err)
 			errs = append(errs, err)
 
 		} else {
