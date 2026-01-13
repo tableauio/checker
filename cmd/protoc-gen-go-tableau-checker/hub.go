@@ -23,7 +23,6 @@ func generateHub(gen *protogen.Plugin) {
 const staticHubContent = `
 	"errors"
 	"fmt"
-	"strings"
 	"sync"
 
 	"github.com/tableauio/tableau/format"
@@ -153,13 +152,7 @@ func getBookAndSheet(protoPackage, msgName string) (*tableaupb.WorkbookOptions, 
 }
 
 func getSheetSpecifier(workbook *tableaupb.WorkbookOptions, worksheet *tableaupb.WorksheetOptions) string {
-	parts := []string{fmt.Sprintf("workbook %s, worksheet %s", workbook.GetName(), worksheet.GetName())}
-	if len(worksheet.GetMerger()) > 0 {
-		parts = append(parts, fmt.Sprintf("merger %s", strings.Join(worksheet.GetMerger(), ";")))
-	} else if len(worksheet.GetScatter()) > 0 {
-		parts = append(parts, fmt.Sprintf("scatter %s", strings.Join(worksheet.GetScatter(), ";")))
-	}
-	return strings.Join(parts, ", ")
+	return fmt.Sprintf("workbook %s (%s), worksheet %s (%s)", workbook.GetName(), workbook, worksheet.GetName(), worksheet)
 }
 
 func (h *Hub) check(protoPackage string, breakFailedCount int) error {
