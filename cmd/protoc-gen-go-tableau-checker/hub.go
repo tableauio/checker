@@ -109,7 +109,7 @@ func (h *Hub) load(loadType, protoPackage, dir string, f format.Format, options 
 			if err := msger.Load(dir, f, mopts); err != nil {
 				workbook, worksheet := getBookAndSheet(protoPackage, name)
 				//lint:ignore ST1005 we want to prettify multiple error messages
-				err := fmt.Errorf("error: %s, load failed: %+v\n", getSheetSpecifier(workbook, worksheet), xerrors.NewDesc(err).ErrString(false))
+				err := fmt.Errorf("error: %s, load failed: %+v\n", getBookAndSheetDesc(workbook, worksheet), xerrors.NewDesc(err).ErrString(false))
 				mu.Lock()
 				errs = append(errs, err)
 				mu.Unlock()
@@ -151,7 +151,11 @@ func getBookAndSheet(protoPackage, msgName string) (*tableaupb.WorkbookOptions, 
 	return workbook, worksheet
 }
 
-func getSheetSpecifier(workbook *tableaupb.WorkbookOptions, worksheet *tableaupb.WorksheetOptions) string {
+func getBookAndSheetBrief(workbook *tableaupb.WorkbookOptions, worksheet *tableaupb.WorksheetOptions) string {
+	return fmt.Sprintf("workbook %s, worksheet %s", workbook.GetName(), worksheet.GetName())
+}
+	
+func getBookAndSheetDesc(workbook *tableaupb.WorkbookOptions, worksheet *tableaupb.WorksheetOptions) string {
 	return fmt.Sprintf("workbook %s (%s), worksheet %s (%s)", workbook.GetName(), workbook, worksheet.GetName(), worksheet)
 }
 
@@ -163,9 +167,9 @@ func (h *Hub) check(protoPackage string, breakFailedCount int) error {
 		err := checker.Check(h.Hub)
 		if err != nil {
 			workbook, worksheet := getBookAndSheet(protoPackage, name)
-			log.Errorf("--- FAIL: %s", getSheetSpecifier(workbook, worksheet))
+			log.Errorf("--- FAIL: %s", getBookAndSheetBrief(workbook, worksheet))
 			//lint:ignore ST1005 we want to prettify multiple error messages
-			err := fmt.Errorf("error: %s, custom check failed: %+v\n", getSheetSpecifier(workbook, worksheet), err)
+			err := fmt.Errorf("error: %s, custom check failed: %+v\n", getBookAndSheetDesc(workbook, worksheet), err)
 			errs = append(errs, err)
 		} else {
 			log.Infof("--- PASS: %v", name)
@@ -189,9 +193,9 @@ func (h *Hub) checkCompatibility(newHub *tableau.Hub, protoPackage string, break
 		err := checker.CheckCompatibility(h.Hub, newHub)
 		if err != nil {
 			workbook, worksheet := getBookAndSheet(protoPackage, name)
-			log.Errorf("--- FAIL: %s", getSheetSpecifier(workbook, worksheet))
+			log.Errorf("--- FAIL: %s", getBookAndSheetBrief(workbook, worksheet))
 			//lint:ignore ST1005 we want to prettify multiple error messages
-			err := fmt.Errorf("error: %s, custom check failed: %+v\n", getSheetSpecifier(workbook, worksheet), err)
+			err := fmt.Errorf("error: %s, custom check failed: %+v\n", getBookAndSheetDesc(workbook, worksheet), err)
 			errs = append(errs, err)
 
 		} else {
