@@ -65,6 +65,8 @@ message ChapterConf {
 message ThemeConf {
   option (tableau.worksheet) = {
     name: "ThemeConf"
+    merger: "Merge1.xlsx#ThemeConf"
+    merger: "Merge2.xlsx#ThemeConf"
   };
   map<string, Theme> theme_map = 1 [(tableau.field) = { key: "Name" layout: LAYOUT_VERTICAL }];
   message Theme {
