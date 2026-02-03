@@ -10,7 +10,7 @@ import (
 func generateHub(gen *protogen.Plugin) {
 	filename := filepath.Join("hub." + checkExt + ".go")
 	g := gen.NewGeneratedFile(filename, "")
-	generateCommonHeader(gen, g, true)
+	generateCommonHeader(gen, g)
 	g.P()
 	g.P("package ", params.pkg)
 	g.P("import (")
@@ -39,6 +39,16 @@ type checker interface {
 	tableau.Messager
 	Check(hub *tableau.Hub) error
 	CheckCompatibility(hub, newHub *tableau.Hub) error
+}
+
+type UnimplementedChecker struct{}
+
+func (UnimplementedChecker) Check(*tableau.Hub) error {
+	return nil
+}
+
+func (UnimplementedChecker) CheckCompatibility(*tableau.Hub, *tableau.Hub) error {
+	return nil
 }
 
 type checkerGenerator = func() checker

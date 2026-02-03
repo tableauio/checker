@@ -1,3 +1,5 @@
+// source: test_conf.proto
+
 package check
 
 import (
