@@ -40,7 +40,6 @@ func generateTypes(gen *protogen.Plugin) {
 	g.P()
 	// register messagers
 	g.P("func init() {")
-	g.P("// NOTE: This func is auto-generated. DO NOT EDIT.")
 	for _, message := range messages {
 		messagerName := string(message.Desc.Name())
 		g.P("register(func() checker {")
