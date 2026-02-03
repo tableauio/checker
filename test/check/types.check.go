@@ -10,17 +10,14 @@ import (
 )
 
 type ActivityConf struct {
-	UnimplementedChecker
 	tableau.ActivityConf
 }
 
 type ChapterConf struct {
-	UnimplementedChecker
 	tableau.ChapterConf
 }
 
 type ThemeConf struct {
-	UnimplementedChecker
 	tableau.ThemeConf
 }
 

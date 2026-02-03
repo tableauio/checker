@@ -41,16 +41,6 @@ type checker interface {
 	CheckCompatibility(hub, newHub *tableau.Hub) error
 }
 
-type UnimplementedChecker struct{}
-
-func (UnimplementedChecker) Check(*tableau.Hub) error {
-	return nil
-}
-
-func (UnimplementedChecker) CheckCompatibility(*tableau.Hub, *tableau.Hub) error {
-	return nil
-}
-
 type checkerGenerator = func() checker
 type registrar struct {
 	Generators map[string]checkerGenerator

@@ -34,7 +34,6 @@ func generateTypes(gen *protogen.Plugin) {
 		g.P()
 		// messager definition
 		g.P("type ", messagerName, " struct {")
-		g.P("UnimplementedChecker")
 		g.P(loaderImportPath.Ident(messagerName))
 		g.P("}")
 	}
