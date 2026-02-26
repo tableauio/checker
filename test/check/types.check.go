@@ -22,7 +22,6 @@ type ThemeConf struct {
 }
 
 func init() {
-	// NOTE: This func is auto-generated. DO NOT EDIT.
 	register(func() checker {
 		return new(ActivityConf)
 	})
