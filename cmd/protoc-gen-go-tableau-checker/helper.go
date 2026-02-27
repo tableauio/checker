@@ -11,9 +11,9 @@ import (
 )
 
 const checkExt = "check" // protoconf file extension
-const pbExt = "pb"       // protobuf file extension
 
-func generateFileHeader(file *protogen.File, g *protogen.GeneratedFile) {
+func generateFileHeader(gen *protogen.Plugin, file *protogen.File, g *protogen.GeneratedFile, withHeading bool) {
+	generateCommonHeader(gen, g, withHeading)
 	if file.Proto.GetOptions().GetDeprecated() {
 		g.P("// ", file.Desc.Path(), " is a deprecated file.")
 	} else {

@@ -38,8 +38,7 @@ func generateMessager(gen *protogen.Plugin) {
 		if existed {
 			addIncrementalFileContent(g, fileMessagers, path)
 		} else {
-			generateCommonHeader(gen, g, false)
-			generateFileHeader(f, g)
+			generateFileHeader(gen, f, g, false)
 			g.P()
 			g.P("package ", params.pkg)
 			g.P("import (")
