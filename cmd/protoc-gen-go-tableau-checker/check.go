@@ -35,11 +35,11 @@ func generateMessager(gen *protogen.Plugin) {
 			panic(err)
 		}
 		g := gen.NewGeneratedFile(filename, "")
+		generateFileHeader(gen, f, g, false)
+		g.P()
 		if existed {
 			addIncrementalFileContent(g, fileMessagers, path)
 		} else {
-			generateFileHeader(gen, f, g, false)
-			g.P()
 			g.P("package ", params.pkg)
 			g.P("import (")
 			g.P("tableau ", loaderImportPath)
@@ -62,7 +62,7 @@ func addIncrementalFileContent(g *protogen.GeneratedFile, messagers []string, pa
 		panic(err)
 	}
 	astMap := parseAST(ast)
-	g.P(removeInitFunc(ast, fset))
+	g.P(removeInitFuncAndTrailingNotes(ast, fset))
 	for _, messager := range messagers {
 		if _, ok := astMap[ASTKey{
 			TypeName: messager,

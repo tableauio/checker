@@ -59,7 +59,7 @@ func parseAST(file *ast.File) map[ASTKey]bool {
 	return astMap
 }
 
-func removeInitFunc(file *ast.File, fset *token.FileSet) string {
+func removeInitFuncAndTrailingNotes(file *ast.File, fset *token.FileSet) string {
 	type rangeToRemove struct {
 		start token.Pos
 		end   token.Pos
@@ -82,9 +82,9 @@ func removeInitFunc(file *ast.File, fset *token.FileSet) string {
 		removedRanges = append(removedRanges, &rangeToRemove{start, end})
 		return true
 	})
-	// remove init function notes
+	// remove init function notes and trailing notes
 	file.Comments = slices.DeleteFunc(file.Comments, func(cg *ast.CommentGroup) bool {
-		return slices.ContainsFunc(removedRanges, func(r *rangeToRemove) bool {
+		return cg.End() < file.Package || slices.ContainsFunc(removedRanges, func(r *rangeToRemove) bool {
 			return cg.Pos() >= r.start && cg.Pos() < r.end
 		})
 	})
