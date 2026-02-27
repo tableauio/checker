@@ -11,6 +11,20 @@ The configuration checker for Tableau.
 - Build: `go build`
 - Run: `./checker`
 
+## Lint
+We suggest to use `strict` mode for detecting and excluding auto-generate files in checker project. Manually disabling `gochecknoinits` is also required.
+An example `.golangci.yaml` is as follows:
+```yaml
+version: "2"
+linters:
+  exclusions:
+    generated: strict
+    rules:
+    - path: \.check\.go$
+      linters:
+        - gochecknoinits
+```
+
 ## Third Party
 
 Submodules dependency:
