@@ -10,7 +10,7 @@ import (
 func generateHub(gen *protogen.Plugin) {
 	filename := filepath.Join("hub." + checkExt + ".go")
 	g := gen.NewGeneratedFile(filename, "")
-	generateCommonHeader(gen, g)
+	generateCommonHeader(gen, g, true)
 	g.P()
 	g.P("package ", params.pkg)
 	g.P("import (")

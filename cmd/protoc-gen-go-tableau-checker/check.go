@@ -19,6 +19,15 @@ func generateMessager(gen *protogen.Plugin) {
 		if !NeedGenFile(f) {
 			continue
 		}
+		var fileMessagers []string
+		for _, message := range f.Messages {
+			opts := message.Desc.Options().(*descriptorpb.MessageOptions)
+			worksheet := proto.GetExtension(opts, tableaupb.E_Worksheet).(*tableaupb.WorksheetOptions)
+			if worksheet != nil {
+				messagerName := string(message.Desc.Name())
+				fileMessagers = append(fileMessagers, messagerName)
+			}
+		}
 		filename := filepath.Join(f.GeneratedFilenamePrefix + "." + checkExt + ".go")
 		path := filepath.Join(params.outdir, filename)
 		existed, err := Exists(path)
@@ -27,8 +36,9 @@ func generateMessager(gen *protogen.Plugin) {
 		}
 		g := gen.NewGeneratedFile(filename, "")
 		if existed {
-			addIncrementalFileContent(f, g, path)
+			addIncrementalFileContent(g, fileMessagers, path)
 		} else {
+			generateCommonHeader(gen, g, false)
 			generateFileHeader(f, g)
 			g.P()
 			g.P("package ", params.pkg)
@@ -36,57 +46,61 @@ func generateMessager(gen *protogen.Plugin) {
 			g.P("tableau ", loaderImportPath)
 			g.P(")")
 			g.P()
-			generateFileContent(f, g)
+			generateFileContent(g, fileMessagers)
 		}
+		generateRegister(g, fileMessagers)
 	}
 }
 
-func addIncrementalFileContent(file *protogen.File, g *protogen.GeneratedFile, path string) {
+func addIncrementalFileContent(g *protogen.GeneratedFile, messagers []string, path string) {
 	content, err := os.ReadFile(path)
 	if err != nil {
 		panic(err)
 	}
-	g.P(string(content))
 	fset := token.NewFileSet()
-	ast, err := parser.ParseFile(fset, path, content, 0)
+	ast, err := parser.ParseFile(fset, path, content, parser.ParseComments)
 	if err != nil {
 		panic(err)
 	}
 	astMap := parseAST(ast)
-	for _, message := range file.Messages {
-		opts := message.Desc.Options().(*descriptorpb.MessageOptions)
-		worksheet := proto.GetExtension(opts, tableaupb.E_Worksheet).(*tableaupb.WorksheetOptions)
-		if worksheet != nil {
-			messagerName := string(message.Desc.Name())
+	g.P(removeInitFunc(ast, fset))
+	for _, messager := range messagers {
+		if _, ok := astMap[ASTKey{
+			TypeName: messager,
+		}]; !ok {
+			generateTypeDecl(g, messager)
+		}
 
-			if _, ok := astMap[ASTKey{
-				TypeName: messagerName,
-				FuncName: "Check",
-			}]; !ok {
-				generateCheck(g, messagerName)
-			}
+		if _, ok := astMap[ASTKey{
+			TypeName: messager,
+			FuncName: "Check",
+		}]; !ok {
+			generateCheck(g, messager)
+		}
 
-			if _, ok := astMap[ASTKey{
-				TypeName: messagerName,
-				FuncName: "CheckCompatibility",
-			}]; !ok {
-				generateCheckCompatibility(g, messagerName)
-			}
+		if _, ok := astMap[ASTKey{
+			TypeName: messager,
+			FuncName: "CheckCompatibility",
+		}]; !ok {
+			generateCheckCompatibility(g, messager)
 		}
 	}
 }
 
 // generateFileContent generates struct type definitions.
-func generateFileContent(file *protogen.File, g *protogen.GeneratedFile) {
-	for _, message := range file.Messages {
-		opts := message.Desc.Options().(*descriptorpb.MessageOptions)
-		worksheet := proto.GetExtension(opts, tableaupb.E_Worksheet).(*tableaupb.WorksheetOptions)
-		if worksheet != nil {
-			messagerName := string(message.Desc.Name())
-			generateCheck(g, messagerName)
-			generateCheckCompatibility(g, messagerName)
-		}
+func generateFileContent(g *protogen.GeneratedFile, messagers []string) {
+	for _, messager := range messagers {
+		generateTypeDecl(g, messager)
+		generateCheck(g, messager)
+		generateCheckCompatibility(g, messager)
 	}
+}
+
+func generateTypeDecl(g *protogen.GeneratedFile, messagerName string) {
+	g.P("type ", messagerName, " struct {")
+	g.P("tableau.", messagerName)
+	g.P("}")
+	g.P()
 }
 
 func generateCheck(g *protogen.GeneratedFile, messagerName string) {
@@ -103,4 +117,12 @@ func generateCheckCompatibility(g *protogen.GeneratedFile, messagerName string) 
 	g.P("return nil")
 	g.P("}")
 	g.P()
+}
+
+func generateRegister(g *protogen.GeneratedFile, messagers []string) {
+	g.P("func init() {")
+	for _, messager := range messagers {
+		g.P("register(func() checker { return new(", messager, ") })")
+	}
+	g.P("}")
 }

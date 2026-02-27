@@ -1,3 +1,6 @@
+// versions:
+// - protoc-gen-go-tableau-checker v0.6.2
+// - protoc                        v3.19.3
 // source: test_conf.proto
 
 package check
@@ -7,6 +10,10 @@ import (
 
 	tableau "github.com/tableauio/checker/test/protoconf/tableau"
 )
+
+type ActivityConf struct {
+	tableau.ActivityConf
+}
 
 func (x *ActivityConf) Check(hub *tableau.Hub) error {
 	// TODO: implement here.
@@ -18,6 +25,10 @@ func (x *ActivityConf) CheckCompatibility(hub, newHub *tableau.Hub) error {
 		hub.GetItemConf().Data(), newHub.GetItemConf().Data())
 }
 
+type ChapterConf struct {
+	tableau.ChapterConf
+}
+
 func (x *ChapterConf) Check(hub *tableau.Hub) error {
 	// TODO: implement here.
 	return nil
@@ -27,6 +38,10 @@ func (x *ChapterConf) CheckCompatibility(hub, newHub *tableau.Hub) error {
 	return fmt.Errorf("should not reach here since ChapterConf is not successfully loaded")
 }
 
+type ThemeConf struct {
+	tableau.ThemeConf
+}
+
 func (x *ThemeConf) Check(hub *tableau.Hub) error {
 	// TODO: implement here.
 	return nil
@@ -34,4 +49,10 @@ func (x *ThemeConf) Check(hub *tableau.Hub) error {
 
 func (x *ThemeConf) CheckCompatibility(hub, newHub *tableau.Hub) error {
 	return fmt.Errorf("should not reach here since ThemeConf is not successfully loaded")
+}
+
+func init() {
+	register(func() checker { return new(ActivityConf) })
+	register(func() checker { return new(ChapterConf) })
+	register(func() checker { return new(ThemeConf) })
 }

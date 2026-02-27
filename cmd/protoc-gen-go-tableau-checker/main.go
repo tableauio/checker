@@ -37,7 +37,6 @@ func main() {
 			loaderImportPath = protogen.GoImportPath(string(f.GoImportPath) + "/" + params.loaderPkg)
 			break
 		}
-		generateTypes(gen)
 		generateMessager(gen)
 		generateHub(gen)
 		return nil
