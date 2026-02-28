@@ -12,43 +12,43 @@ import (
 	"google.golang.org/protobuf/types/descriptorpb"
 )
 
+var loaderImportPath protogen.GoImportPath
+
 // generateMessager generates a protoconf file correponsing to the protobuf file.
 // Each wrapped struct type implement the Messager interface.
-func generateMessager(gen *protogen.Plugin) {
-	for _, f := range gen.Files {
-		if !NeedGenFile(f) {
-			continue
+func generateMessager(gen *protogen.Plugin, file *protogen.File) {
+	loaderImportPath = protogen.GoImportPath(string(file.GoImportPath) + "/" + params.loaderPkg)
+	// parse file messagers
+	var fileMessagers []string
+	for _, message := range file.Messages {
+		opts := message.Desc.Options().(*descriptorpb.MessageOptions)
+		worksheet := proto.GetExtension(opts, tableaupb.E_Worksheet).(*tableaupb.WorksheetOptions)
+		if worksheet != nil {
+			messagerName := string(message.Desc.Name())
+			fileMessagers = append(fileMessagers, messagerName)
 		}
-		var fileMessagers []string
-		for _, message := range f.Messages {
-			opts := message.Desc.Options().(*descriptorpb.MessageOptions)
-			worksheet := proto.GetExtension(opts, tableaupb.E_Worksheet).(*tableaupb.WorksheetOptions)
-			if worksheet != nil {
-				messagerName := string(message.Desc.Name())
-				fileMessagers = append(fileMessagers, messagerName)
-			}
-		}
-		filename := filepath.Join(f.GeneratedFilenamePrefix + "." + checkExt + ".go")
-		path := filepath.Join(params.outdir, filename)
-		existed, err := Exists(path)
-		if err != nil {
-			panic(err)
-		}
-		g := gen.NewGeneratedFile(filename, "")
-		generateFileHeader(gen, f, g, false)
-		g.P()
-		if existed {
-			addIncrementalFileContent(g, fileMessagers, path)
-		} else {
-			g.P("package ", params.pkg)
-			g.P("import (")
-			g.P("tableau ", loaderImportPath)
-			g.P(")")
-			g.P()
-			generateFileContent(g, fileMessagers)
-		}
-		generateRegister(g, fileMessagers)
 	}
+	// generate file
+	filename := filepath.Join(file.GeneratedFilenamePrefix + "." + checkExt + ".go")
+	path := filepath.Join(params.outdir, filename)
+	exists, err := Exists(path)
+	if err != nil {
+		panic(err)
+	}
+	g := gen.NewGeneratedFile(filename, "")
+	generateFileHeader(gen, file, g, false)
+	g.P()
+	if exists {
+		addIncrementalFileContent(g, fileMessagers, path)
+	} else {
+		g.P("package ", params.pkg)
+		g.P("import (")
+		g.P("tableau ", loaderImportPath)
+		g.P(")")
+		g.P()
+		generateFileContent(g, fileMessagers)
+	}
+	generateRegister(g, fileMessagers)
 }
 
 func addIncrementalFileContent(g *protogen.GeneratedFile, messagers []string, path string) {

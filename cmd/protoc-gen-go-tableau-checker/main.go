@@ -17,8 +17,6 @@ type Params struct {
 
 var params = Params{}
 
-var loaderImportPath protogen.GoImportPath
-
 func main() {
 	var flags flag.FlagSet
 	flags.StringVar(&params.pkg, "pkg", "check", "tableau checker package name")
@@ -34,10 +32,8 @@ func main() {
 			if !NeedGenFile(f) {
 				continue
 			}
-			loaderImportPath = protogen.GoImportPath(string(f.GoImportPath) + "/" + params.loaderPkg)
-			break
+			generateMessager(gen, f)
 		}
-		generateMessager(gen)
 		generateHub(gen)
 		return nil
 	})
