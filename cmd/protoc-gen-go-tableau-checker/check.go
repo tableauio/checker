@@ -119,6 +119,7 @@ func generateCheckCompatibility(g *protogen.GeneratedFile, messagerName string) 
 }
 
 func generateRegister(g *protogen.GeneratedFile, messagers []string) {
+	g.P("//nolint:gochecknoinits")
 	g.P("func init() {")
 	for _, messager := range messagers {
 		g.P("register(func() checker { return new(", messager, ") })")
