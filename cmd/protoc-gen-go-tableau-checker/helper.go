@@ -11,7 +11,6 @@ import (
 )
 
 const checkExt = "check" // protoconf file extension
-const pbExt = "pb"       // protobuf file extension
 
 func generateFileHeader(gen *protogen.Plugin, file *protogen.File, g *protogen.GeneratedFile, doNotEdit bool) {
 	generateCommonHeader(gen, g, doNotEdit)

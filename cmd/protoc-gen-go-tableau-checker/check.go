@@ -1,11 +1,10 @@
 package main
 
 import (
-	"bufio"
+	"go/parser"
+	"go/token"
 	"os"
 	"path/filepath"
-	"regexp"
-	"strings"
 
 	"github.com/tableauio/tableau/proto/tableaupb"
 	"google.golang.org/protobuf/compiler/protogen"
@@ -13,166 +12,117 @@ import (
 	"google.golang.org/protobuf/types/descriptorpb"
 )
 
-// const (
-// 	errorsPackage = protogen.GoImportPath("errors")
-// 	fmtPackage    = protogen.GoImportPath("fmt")
-// 	formatPackage = protogen.GoImportPath("github.com/tableauio/tableau/format")
-// 	loadPackage   = protogen.GoImportPath("github.com/tableauio/tableau/load")
-// )
-
-// golbal container for record all proto filenames and messager names
 var loaderImportPath protogen.GoImportPath
 
 // generateMessager generates a protoconf file correponsing to the protobuf file.
 // Each wrapped struct type implement the Messager interface.
 func generateMessager(gen *protogen.Plugin, file *protogen.File) {
 	loaderImportPath = protogen.GoImportPath(string(file.GoImportPath) + "/" + params.loaderPkg)
-
-	filename := filepath.Join(file.GeneratedFilenamePrefix + "." + checkExt + ".go")
-	path := filepath.Join(params.outdir, filename)
-	existed, err := Exists(path)
-	if err != nil {
-		panic(err)
-	}
-	if existed {
-		g := gen.NewGeneratedFile(filename, "")
-		generateFileHeader(gen, file, g, false)
-		addIncrementalFileContent(gen, file, g, path)
-	} else {
-		g := gen.NewGeneratedFile(filename, "")
-		generateFileHeader(gen, file, g, false)
-		g.P()
-		g.P("package ", params.pkg)
-		g.P()
-		generateFileContent(gen, file, g)
-	}
-}
-
-var checkerRegexp *regexp.Regexp
-
-func init() {
-	checkerRegexp = regexp.MustCompile(`^type (.+) struct {`) // e.g.: type ItemConf struct {
-}
-
-func addIncrementalFileContent(gen *protogen.Plugin, file *protogen.File, g *protogen.GeneratedFile, path string) {
-	f, err := os.Open(path)
-	if err != nil {
-		panic(err)
-	}
-	defer f.Close()
-
-	messagerMap := map[string]bool{}
+	// parse file messagers
 	var fileMessagers []string
 	for _, message := range file.Messages {
 		opts := message.Desc.Options().(*descriptorpb.MessageOptions)
 		worksheet := proto.GetExtension(opts, tableaupb.E_Worksheet).(*tableaupb.WorksheetOptions)
 		if worksheet != nil {
 			messagerName := string(message.Desc.Name())
-			messagerMap[messagerName] = false
 			fileMessagers = append(fileMessagers, messagerName)
 		}
 	}
-	content := ""
-	scanner := bufio.NewScanner(f)
-	line := 0
-	headingCommentLines := 0
-	initFirstLine := -1
-	initEndLine := -1
-	for scanner.Scan() {
-		line++
-		if headingCommentLines+1 == line && strings.HasPrefix(scanner.Text(), "//") {
-			headingCommentLines++
-		}
-		if line > headingCommentLines {
-			if strings.HasPrefix(scanner.Text(), "func init()") {
-				initFirstLine = line
-			}
-			if initFirstLine > 0 && initEndLine < 0 {
-				if strings.HasPrefix(scanner.Text(), "}") {
-					initEndLine = line
-				}
-			}
-			if initFirstLine < 0 || (initEndLine > 0 && line > initEndLine) {
-				content += scanner.Text() + "\n"
-			}
-		}
-		if matches := checkerRegexp.FindStringSubmatch(scanner.Text()); len(matches) > 0 {
-			msger := strings.TrimSpace(matches[1])
-			if _, ok := messagerMap[msger]; ok {
-				messagerMap[msger] = true
-			}
-		}
-	}
-
-	if err := scanner.Err(); err != nil {
+	// generate file
+	filename := filepath.Join(file.GeneratedFilenamePrefix + "." + checkExt + ".go")
+	path := filepath.Join(params.outdir, filename)
+	exists, err := Exists(path)
+	if err != nil {
 		panic(err)
 	}
+	g := gen.NewGeneratedFile(filename, "")
+	generateFileHeader(gen, file, g, false)
+	g.P()
+	if exists {
+		addIncrementalFileContent(g, fileMessagers, path)
+	} else {
+		g.P("package ", params.pkg)
+		g.P("import (")
+		g.P("tableau ", loaderImportPath)
+		g.P(")")
+		g.P()
+		generateFileContent(g, fileMessagers)
+	}
+	generateRegister(g, fileMessagers)
+}
 
-	g.P(content)
-	for messagerName, existed := range messagerMap {
-		if !existed {
-			genMessage(gen, file, g, messagerName, true)
+func addIncrementalFileContent(g *protogen.GeneratedFile, messagers []string, path string) {
+	content, err := os.ReadFile(path)
+	if err != nil {
+		panic(err)
+	}
+	fset := token.NewFileSet()
+	ast, err := parser.ParseFile(fset, path, content, parser.ParseComments)
+	if err != nil {
+		panic(err)
+	}
+	astMap := parseAST(ast)
+	g.P(removeInitFuncAndTrailingNotes(ast, fset))
+	for _, messager := range messagers {
+		if _, ok := astMap[ASTKey{
+			TypeName: messager,
+		}]; !ok {
+			generateTypeDecl(g, messager)
+		}
+
+		if _, ok := astMap[ASTKey{
+			TypeName: messager,
+			FuncName: "Check",
+		}]; !ok {
+			generateCheck(g, messager)
+		}
+
+		if _, ok := astMap[ASTKey{
+			TypeName: messager,
+			FuncName: "CheckCompatibility",
+		}]; !ok {
+			generateCheckCompatibility(g, messager)
 		}
 	}
-
-	generateRegister(fileMessagers, g, true)
 }
 
 // generateFileContent generates struct type definitions.
-func generateFileContent(gen *protogen.Plugin, file *protogen.File, g *protogen.GeneratedFile) {
-	var fileMessagers []string
-	for _, message := range file.Messages {
-		opts := message.Desc.Options().(*descriptorpb.MessageOptions)
-		worksheet := proto.GetExtension(opts, tableaupb.E_Worksheet).(*tableaupb.WorksheetOptions)
-		if worksheet != nil {
-			messagerName := string(message.Desc.Name())
-			genMessage(gen, file, g, messagerName, false)
-			fileMessagers = append(fileMessagers, messagerName)
-		}
-	}
-	generateRegister(fileMessagers, g, false)
-}
-
-func generateRegister(messagers []string, g *protogen.GeneratedFile, incremental bool) {
-	// register messagers
-	g.P("func init() {")
-	g.P("// NOTE: This func is auto-generated. DO NOT EDIT.")
+func generateFileContent(g *protogen.GeneratedFile, messagers []string) {
 	for _, messager := range messagers {
-		g.P("register(func() checker {")
-		g.P("return new(", messager, ")")
-		g.P("})")
+		generateTypeDecl(g, messager)
+		generateCheck(g, messager)
+		generateCheckCompatibility(g, messager)
 	}
-	g.P("}")
 }
 
-// genMessage generates a message definition.
-func genMessage(gen *protogen.Plugin, file *protogen.File, g *protogen.GeneratedFile, messagerName string, incremental bool) {
-	// messager definition
+func generateTypeDecl(g *protogen.GeneratedFile, messagerName string) {
 	g.P("type ", messagerName, " struct {")
-	if incremental {
-		g.P(params.loaderPkg, ".", messagerName)
-	} else {
-		g.P(loaderImportPath.Ident(messagerName))
-	}
+	g.P("tableau.", messagerName)
 	g.P("}")
 	g.P()
+}
 
-	var hubTypeIdent any
-	if incremental {
-		hubTypeIdent = params.loaderPkg + ".Hub"
-	} else {
-		hubTypeIdent = loaderImportPath.Ident("Hub")
-	}
-
-	g.P("func (x *", messagerName, ") Check(hub *", hubTypeIdent, ") error {")
+func generateCheck(g *protogen.GeneratedFile, messagerName string) {
+	g.P("func (x *", messagerName, ") Check(hub *tableau.Hub) error {")
 	g.P("// TODO: implement here.")
 	g.P("return nil")
 	g.P("}")
 	g.P()
+}
 
-	g.P("func (x *", messagerName, ") CheckCompatibility(hub, newHub *", hubTypeIdent, ") error {")
+func generateCheckCompatibility(g *protogen.GeneratedFile, messagerName string) {
+	g.P("func (x *", messagerName, ") CheckCompatibility(hub, newHub *tableau.Hub) error {")
 	g.P("// TODO: implement here.")
 	g.P("return nil")
 	g.P("}")
 	g.P()
+}
+
+func generateRegister(g *protogen.GeneratedFile, messagers []string) {
+	g.P("//nolint:gochecknoinits")
+	g.P("func init() {")
+	for _, messager := range messagers {
+		g.P("register(func() checker { return new(", messager, ") })")
+	}
+	g.P("}")
 }

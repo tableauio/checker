@@ -52,15 +52,9 @@ func (x *ThemeConf) CheckCompatibility(hub, newHub *tableau.Hub) error {
 	return fmt.Errorf("should not reach here since ThemeConf is not successfully loaded")
 }
 
+//nolint:gochecknoinits
 func init() {
-	// NOTE: This func is auto-generated. DO NOT EDIT.
-	register(func() checker {
-		return new(ActivityConf)
-	})
-	register(func() checker {
-		return new(ChapterConf)
-	})
-	register(func() checker {
-		return new(ThemeConf)
-	})
+	register(func() checker { return new(ActivityConf) })
+	register(func() checker { return new(ChapterConf) })
+	register(func() checker { return new(ThemeConf) })
 }
