@@ -1,7 +1,6 @@
 package main
 
 import (
-	"os"
 	"strings"
 
 	"github.com/tableauio/checker/test/check"
@@ -45,7 +44,8 @@ func main() {
 	)
 	if err1 != nil {
 		log.Errorf("check failed, see errors below:\n%v", err1)
-		os.Exit(-1)
+		// Uncomment the line below to exit with a non-zero code when used as a CLI tool.
+		// os.Exit(1)
 	}
 	err2 := check.NewHub(tableau.Filter(Filter)).CheckCompatibility("./testdata/", "./testdata1/", format.JSON,
 		check.SkipLoadErrors(),
@@ -54,6 +54,7 @@ func main() {
 	)
 	if err2 != nil {
 		log.Errorf("check compatibility failed, see errors below:\n%v", err2)
-		os.Exit(-1)
+		// Uncomment the line below to exit with a non-zero code when used as a CLI tool.
+		// os.Exit(1)
 	}
 }
