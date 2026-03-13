@@ -7,9 +7,9 @@ The configuration checker for Tableau.
 
 ## Run
 
-- Generate `*.pb.go` and `*.pc.go`: `bash scripts/gen.sh`
-- Build: `go build`
-- Run: `./checker`
+1. Generate `*.pb.go` and `*.check.go`: `bash test/gen.sh`
+2. Test: `cd test && go test ./...`
+3. Run directly: `cd test && go run .`
 
 ## Lint
 We suggest to use `strict` mode for detecting and excluding auto-generate files in checker project.
