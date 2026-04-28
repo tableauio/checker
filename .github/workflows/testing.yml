@@ -3,7 +3,7 @@ name: Testing Go
 # Trigger on pushes, PRs (excluding documentation changes), and nightly.
 on:
   push:
-    branches: [master, main]
+    branches: [ master, main ]
   pull_request:
   schedule:
     - cron: 0 0 * * * # daily at 00:00
@@ -16,16 +16,14 @@ jobs:
   test:
     strategy:
       matrix:
-        go-version: [1.23.x]
-        os: [ubuntu-latest, windows-latest]
+        go-version: [ 1.24.x ]
+        os: [ ubuntu-latest, windows-latest ]
 
     runs-on: ${{ matrix.os }}
 
     steps:
       - name: Checkout Code
         uses: actions/checkout@v6
-        with:
-          submodules: recursive
 
       - name: Install Go
         uses: actions/setup-go@v6
@@ -33,24 +31,24 @@ jobs:
           go-version: ${{ matrix.go-version }}
           cache: true
 
-      - name: Install Protoc
-        uses: arduino/setup-protoc@v3
+      - name: Install Buf
+        uses: bufbuild/buf-action@v1
         with:
-          version: "23.x"
-          repo-token: ${{ secrets.GITHUB_TOKEN }}
-
-      - name: Install protoc-gen-go
-        run: go install google.golang.org/protobuf/cmd/protoc-gen-go@v1.34.2
+          version: 1.67.0
+          setup_only: true
+          github_token: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Generate protoconf
+        working-directory: test
         shell: bash
-        run: PROTOC=protoc bash test/gen.sh
+        run: buf generate
 
       - name: Vet
         run: go vet ./...
 
       - name: Unittest
-        run: go test -v -timeout 30m -race ./... -coverprofile=coverage.txt -covermode=atomic
+        run: go test -v -timeout 30m -race ./... -coverprofile=coverage.txt
+          -covermode=atomic
 
       - name: Run checker
         working-directory: test
