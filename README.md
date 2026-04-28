@@ -3,11 +3,12 @@ The configuration checker for Tableau.
 
 ## Prerequisites
 
-- Init project: `bash init.sh`
+- [Go](https://go.dev/doc/install) (>= 1.24)
+- [buf](https://buf.build/docs/installation) (>= v1.40)
 
 ## Run
 
-1. Generate `*.pb.go` and `*.check.go`: `bash test/gen.sh`
+1. Generate `*.pb.go` and `*.check.go`: `cd test && buf generate`
 2. Test: `cd test && go test ./...`
 3. Run directly: `cd test && go run .`
 
@@ -21,9 +22,13 @@ linters:
     generated: strict
 ```
 
-## Third Party
+## Code Generation
 
-Submodules dependency:
-- **loader**: `loader/cmd/protoc-gen-go-tableau-loader`
-- **tableau**: `tableau/proto/tableau.proto`
-- **protobuf**: `protobuf/src/*.proto` and `protoc`
+Code generation is driven by [buf](https://buf.build/) via the
+configuration under `test/`:
+
+- `test/buf.yaml`: module and remote dependencies (e.g. `buf.build/tableauio/tableau`).
+- `test/buf.gen.yaml`: plugins used to generate code, including:
+  - `buf.build/protocolbuffers/go` — generates `*.pb.go`.
+  - `github.com/tableauio/loader/cmd/protoc-gen-go-tableau-loader` — generates loader code.
+  - `protoc-gen-go-tableau-checker` (this repo) — generates `*.check.go`.

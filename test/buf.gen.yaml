@@ -1,0 +1,20 @@
+version: v2
+plugins:
+  - remote: buf.build/protocolbuffers/go:v1.34.2
+    out: protoconf
+    opt: paths=source_relative
+  - local:
+      [
+        "go",
+        "run",
+        "github.com/tableauio/loader/cmd/protoc-gen-go-tableau-loader@v0.5.0",
+      ]
+    out: protoconf/tableau
+    opt: paths=source_relative
+    strategy: all
+  - local: [ "go", "run", "../cmd/protoc-gen-go-tableau-checker" ]
+    out: check
+    opt:
+      - paths=source_relative
+      - out=check
+    strategy: all
