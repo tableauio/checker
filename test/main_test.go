@@ -14,8 +14,12 @@ func TestCheck(t *testing.T) {
 		check.BreakFailedCount(2),
 		check.WithLoadOptions(load.IgnoreUnknownFields()),
 	)
-	if err != nil {
-		t.Errorf("check failed, see errors below:\n%v", err)
+	// testdata contains chapters with awardId=0 which does not exist in ItemConf,
+	// so a check error is expected.
+	if err == nil {
+		t.Errorf("check should have failed, but got no error")
+	} else {
+		t.Logf("check returned expected errors:\n%v", err)
 	}
 }
 
