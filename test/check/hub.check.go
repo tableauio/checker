@@ -44,10 +44,7 @@ type Issue struct {
 	Worksheet *tableaupb.WorksheetOptions `json:"worksheet,omitempty"`
 }
 
-// Error implements the error interface.
-// The format is identical to the original error messages produced before
-// structured issues were introduced, ensuring backward-compatible output
-// when errors are printed via errors.Join or %v/%s formatting.
+// Error returns the issue as a human-readable string.
 func (i Issue) Error() string {
 	return fmt.Sprintf("error: workbook %s (%s), worksheet %s (%s), %s",
 		i.Workbook.GetName(), i.Workbook,
@@ -55,14 +52,12 @@ func (i Issue) Error() string {
 		i.Message)
 }
 
-// protoJSONMarshaler is used to serialize proto messages with correct field names.
-// encoding/json cannot correctly serialize proto messages on its own (e.g. enum
-// values would be emitted as integers rather than their string names).
+// protoJSONMarshaler serializes proto messages with correct field names.
+// encoding/json alone cannot handle proto messages correctly (e.g. enums become integers).
 var protoJSONMarshaler = protojson.MarshalOptions{EmitUnpopulated: false}
 
-// MarshalJSON implements json.Marshaler.
-// Proto fields are serialized via protojson to produce correct field names,
-// because encoding/json cannot correctly serialize proto messages on its own.
+// MarshalJSON encodes the issue as JSON, using protojson for proto fields
+// so that enum values are emitted as strings rather than integers.
 func (i Issue) MarshalJSON() ([]byte, error) {
 	out := struct {
 		Kind      IssueKind       `json:"kind"`
@@ -90,8 +85,7 @@ func (i Issue) MarshalJSON() ([]byte, error) {
 	return json.Marshal(out)
 }
 
-// ErrorFormat is a function that formats a slice of issues into a string.
-// It is called by CheckError.Error() to produce the final error message.
+// ErrorFormat is a function type that formats a slice of issues into a string.
 type ErrorFormat func([]Issue) string
 
 // ErrorFormatText formats issues as human-readable text lines (default).
@@ -116,16 +110,14 @@ var ErrorFormatJSON ErrorFormat = func(issues []Issue) string {
 	return string(b)
 }
 
-// CheckError is the error type returned by Check and CheckCompatibility.
-// Its Error() method serializes all collected issues in the configured format,
-// so fmt.Println(err) / log.Error(err) produce the right output without any
-// extra glue code on the caller side.
+// CheckError is the error type returned by Check and CheckCompatibility,
+// wrapping all collected issues and formatting them via ErrorFormat.
 type CheckError struct {
 	Issues []Issue
 	Format ErrorFormat
 }
 
-// Error implements the error interface, formatting issues via the configured ErrorFormat.
+// Error formats all issues using the configured ErrorFormat.
 // Falls back to ErrorFormatText if Format is nil.
 func (e *CheckError) Error() string {
 	if e.Format == nil {
@@ -134,7 +126,7 @@ func (e *CheckError) Error() string {
 	return e.Format(e.Issues)
 }
 
-// Unwrap returns the individual issues as errors, enabling errors.Is/As traversal.
+// Unwrap returns all issues as individual errors, enabling errors.Is/As traversal.
 func (e *CheckError) Unwrap() []error {
 	errs := make([]error, len(e.Issues))
 	for i, issue := range e.Issues {
@@ -376,10 +368,7 @@ type Options struct {
 	//
 	// Default: nil.
 	LoadOptions []load.Option
-	// ErrorFormat controls how the returned error is formatted when printed.
-	// Use ErrorFormatText (default) or ErrorFormatJSON for built-in formats,
-	// or provide a custom func([]Issue) string for fully custom formatting.
-	//
+	// ErrorFormat controls how issues are formatted when the error is printed.
 	// Default: ErrorFormatText.
 	ErrorFormat ErrorFormat
 }
@@ -415,9 +404,7 @@ func WithLoadOptions(options ...load.Option) Option {
 	}
 }
 
-// WithErrorFormat sets the format used when the returned error is printed.
-// Use ErrorFormatText (default) or ErrorFormatJSON for built-in formats,
-// or pass a custom func([]Issue) string for fully custom formatting.
+// WithErrorFormat sets the ErrorFormat used to print the returned error.
 func WithErrorFormat(f ErrorFormat) Option {
 	return func(opts *Options) {
 		opts.ErrorFormat = f
