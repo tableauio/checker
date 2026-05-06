@@ -8,8 +8,9 @@ package check
 import (
 	tableau "github.com/tableauio/checker/test/protoconf/tableau"
 
-	"errors"
+	"encoding/json"
 	"fmt"
+	"strings"
 	"sync"
 
 	"github.com/tableauio/tableau/format"
@@ -17,10 +18,130 @@ import (
 	"github.com/tableauio/tableau/log"
 	"github.com/tableauio/tableau/proto/tableaupb"
 	"github.com/tableauio/tableau/xerrors"
+	"google.golang.org/protobuf/encoding/protojson"
 	"google.golang.org/protobuf/proto"
 	"google.golang.org/protobuf/reflect/protoreflect"
 	"google.golang.org/protobuf/reflect/protoregistry"
 )
+
+// IssueKind represents the kind of check issue.
+type IssueKind string
+
+const (
+	// IssueKindLoad represents an issue that occurred during loading.
+	IssueKindLoad IssueKind = "load"
+	// IssueKindCheck represents an issue that occurred during custom check.
+	IssueKindCheck IssueKind = "check"
+	// IssueKindCompatibility represents an issue that occurred during compatibility check.
+	IssueKindCompatibility IssueKind = "compatibility"
+)
+
+// Issue represents a single structured check error.
+type Issue struct {
+	Kind      IssueKind                   `json:"kind"`
+	Message   string                      `json:"message"`
+	Workbook  *tableaupb.WorkbookOptions  `json:"workbook,omitempty"`
+	Worksheet *tableaupb.WorksheetOptions `json:"worksheet,omitempty"`
+}
+
+// Error implements the error interface.
+// The format is identical to the original error messages produced before
+// structured issues were introduced, ensuring backward-compatible output
+// when errors are printed via errors.Join or %v/%s formatting.
+func (i Issue) Error() string {
+	return fmt.Sprintf("error: workbook %s (%s), worksheet %s (%s), %s",
+		i.Workbook.GetName(), i.Workbook,
+		i.Worksheet.GetName(), i.Worksheet,
+		i.Message)
+}
+
+// protoJSONMarshaler is used to serialize proto messages with correct field names.
+// encoding/json cannot correctly serialize proto messages on its own (e.g. enum
+// values would be emitted as integers rather than their string names).
+var protoJSONMarshaler = protojson.MarshalOptions{EmitUnpopulated: false}
+
+// MarshalJSON implements json.Marshaler.
+// Proto fields are serialized via protojson to produce correct field names,
+// because encoding/json cannot correctly serialize proto messages on its own.
+func (i Issue) MarshalJSON() ([]byte, error) {
+	out := struct {
+		Kind      IssueKind       `json:"kind"`
+		Message   string          `json:"message"`
+		Workbook  json.RawMessage `json:"workbook,omitempty"`
+		Worksheet json.RawMessage `json:"worksheet,omitempty"`
+	}{
+		Kind:    i.Kind,
+		Message: i.Message,
+	}
+	if i.Workbook != nil {
+		b, err := protoJSONMarshaler.Marshal(i.Workbook)
+		if err != nil {
+			return nil, err
+		}
+		out.Workbook = json.RawMessage(b)
+	}
+	if i.Worksheet != nil {
+		b, err := protoJSONMarshaler.Marshal(i.Worksheet)
+		if err != nil {
+			return nil, err
+		}
+		out.Worksheet = json.RawMessage(b)
+	}
+	return json.Marshal(out)
+}
+
+// ErrorFormat is a function that formats a slice of issues into a string.
+// It is called by CheckError.Error() to produce the final error message.
+type ErrorFormat func([]Issue) string
+
+// ErrorFormatText formats issues as human-readable text lines (default).
+var ErrorFormatText ErrorFormat = func(issues []Issue) string {
+	msgs := make([]string, len(issues))
+	for i, issue := range issues {
+		msgs[i] = issue.Error()
+	}
+	return strings.Join(msgs, "\n")
+}
+
+// ErrorFormatJSON formats issues as a JSON object with an "issues" array.
+// Falls back to ErrorFormatText if marshaling fails.
+var ErrorFormatJSON ErrorFormat = func(issues []Issue) string {
+	b, err := json.Marshal(struct {
+		Issues []Issue `json:"issues"`
+	}{Issues: issues})
+	if err != nil {
+		log.Errorf("failed to marshal issues to JSON, falling back to text format: %+v", err)
+		return ErrorFormatText(issues)
+	}
+	return string(b)
+}
+
+// CheckError is the error type returned by Check and CheckCompatibility.
+// Its Error() method serializes all collected issues in the configured format,
+// so fmt.Println(err) / log.Error(err) produce the right output without any
+// extra glue code on the caller side.
+type CheckError struct {
+	Issues []Issue
+	Format ErrorFormat
+}
+
+// Error implements the error interface, formatting issues via the configured ErrorFormat.
+// Falls back to ErrorFormatText if Format is nil.
+func (e *CheckError) Error() string {
+	if e.Format == nil {
+		return ErrorFormatText(e.Issues)
+	}
+	return e.Format(e.Issues)
+}
+
+// Unwrap returns the individual issues as errors, enabling errors.Is/As traversal.
+func (e *CheckError) Unwrap() []error {
+	errs := make([]error, len(e.Issues))
+	for i, issue := range e.Issues {
+		errs[i] = issue
+	}
+	return errs
+}
 
 type checker interface {
 	tableau.Messager
@@ -74,10 +195,10 @@ const (
 	loadTypeNew     = "(new)"
 )
 
-func (h *Hub) load(loadType, protoPackage, dir string, f format.Format, options ...load.Option) error {
+func (h *Hub) load(loadType, protoPackage, dir string, f format.Format, options ...load.Option) []Issue {
 	var mu sync.Mutex
 	msgers := tableau.MessagerMap{}
-	var errs []error
+	var issues []Issue
 	var wg sync.WaitGroup
 	opts := load.ParseOptions(options...)
 	for name, msger := range h.NewMessagerMap() {
@@ -95,10 +216,14 @@ func (h *Hub) load(loadType, protoPackage, dir string, f format.Format, options 
 			mopts := opts.ParseMessagerOptionsByName(name)
 			if err := msger.Load(dir, f, mopts); err != nil {
 				workbook, worksheet := getBookAndSheet(protoPackage, name)
-				//lint:ignore ST1005 we want to prettify multiple error messages
-				err := fmt.Errorf("error: %s, load failed: %+v\n", getBookAndSheetDesc(workbook, worksheet), xerrors.NewDesc(err).ErrString(false))
+				issue := Issue{
+					Kind:      IssueKindLoad,
+					Message:   fmt.Sprintf("load failed: %+v", xerrors.NewDesc(err).ErrString(false)),
+					Workbook:  workbook,
+					Worksheet: worksheet,
+				}
 				mu.Lock()
-				errs = append(errs, err)
+				issues = append(issues, issue)
 				mu.Unlock()
 				log.Infof("--- FAIL: %v%v", name, loadType)
 			} else {
@@ -111,7 +236,7 @@ func (h *Hub) load(loadType, protoPackage, dir string, f format.Format, options 
 	}
 	wg.Wait()
 	h.SetMessagerMap(msgers)
-	return errors.Join(errs...)
+	return issues
 }
 
 func getBookAndSheet(protoPackage, msgName string) (*tableaupb.WorkbookOptions, *tableaupb.WorksheetOptions) {
@@ -138,38 +263,33 @@ func getBookAndSheet(protoPackage, msgName string) (*tableaupb.WorkbookOptions, 
 	return workbook, worksheet
 }
 
-func getBookAndSheetBrief(workbook *tableaupb.WorkbookOptions, worksheet *tableaupb.WorksheetOptions) string {
-	return fmt.Sprintf("workbook %s, worksheet %s", workbook.GetName(), worksheet.GetName())
-}
-
-func getBookAndSheetDesc(workbook *tableaupb.WorkbookOptions, worksheet *tableaupb.WorksheetOptions) string {
-	return fmt.Sprintf("workbook %s (%s), worksheet %s (%s)", workbook.GetName(), workbook, worksheet.GetName(), worksheet)
-}
-
-func (h *Hub) check(protoPackage string, breakFailedCount int) error {
-	var errs []error
+func (h *Hub) check(protoPackage string, breakFailedCount int) []Issue {
+	var issues []Issue
 	for name, checker := range h.checkers {
 		log.Infof("=== RUN   %v", name)
 		// custom check logic
 		err := checker.Check(h.Hub)
 		if err != nil {
 			workbook, worksheet := getBookAndSheet(protoPackage, name)
-			log.Errorf("--- FAIL: %s", getBookAndSheetBrief(workbook, worksheet))
-			//lint:ignore ST1005 we want to prettify multiple error messages
-			err := fmt.Errorf("error: %s, custom check failed: %+v\n", getBookAndSheetDesc(workbook, worksheet), err)
-			errs = append(errs, err)
+			log.Errorf("--- FAIL: workbook %s, worksheet %s", workbook.GetName(), worksheet.GetName())
+			issues = append(issues, Issue{
+				Kind:      IssueKindCheck,
+				Message:   fmt.Sprintf("custom check failed: %+v", err),
+				Workbook:  workbook,
+				Worksheet: worksheet,
+			})
 		} else {
 			log.Infof("--- PASS: %v", name)
 		}
-		if len(errs) >= breakFailedCount {
+		if len(issues) >= breakFailedCount {
 			break
 		}
 	}
-	return errors.Join(errs...)
+	return issues
 }
 
-func (h *Hub) checkCompatibility(newHub *tableau.Hub, protoPackage string, breakFailedCount int) error {
-	var errs []error
+func (h *Hub) checkCompatibility(newHub *tableau.Hub, protoPackage string, breakFailedCount int) []Issue {
+	var issues []Issue
 	for name, checker := range h.checkers {
 		if h.GetMessager(name) == nil || newHub.GetMessager(name) == nil {
 			log.Infof("=== SKIP  %v", name)
@@ -180,47 +300,57 @@ func (h *Hub) checkCompatibility(newHub *tableau.Hub, protoPackage string, break
 		err := checker.CheckCompatibility(h.Hub, newHub)
 		if err != nil {
 			workbook, worksheet := getBookAndSheet(protoPackage, name)
-			log.Errorf("--- FAIL: %s", getBookAndSheetBrief(workbook, worksheet))
-			//lint:ignore ST1005 we want to prettify multiple error messages
-			err := fmt.Errorf("error: %s, custom check failed: %+v\n", getBookAndSheetDesc(workbook, worksheet), err)
-			errs = append(errs, err)
-
+			log.Errorf("--- FAIL: workbook %s, worksheet %s", workbook.GetName(), worksheet.GetName())
+			issues = append(issues, Issue{
+				Kind:      IssueKindCompatibility,
+				Message:   fmt.Sprintf("custom check failed: %+v", err),
+				Workbook:  workbook,
+				Worksheet: worksheet,
+			})
 		} else {
 			log.Infof("--- PASS: %v", name)
 		}
-		if len(errs) >= breakFailedCount {
+		if len(issues) >= breakFailedCount {
 			break
 		}
 	}
-	return errors.Join(errs...)
+	return issues
 }
 
 func (h *Hub) Check(dir string, format format.Format, options ...Option) error {
 	opts := ParseOptions(options...)
 	// load hub
-	err := h.load(loadTypeDefault, opts.ProtoPackage, dir, format, opts.LoadOptions...)
-	if err != nil {
-		return err
+	loadIssues := h.load(loadTypeDefault, opts.ProtoPackage, dir, format, opts.LoadOptions...)
+	if len(loadIssues) > 0 {
+		return &CheckError{Issues: loadIssues, Format: opts.ErrorFormat}
 	}
-	return h.check(opts.ProtoPackage, opts.BreakFailedCount)
+	checkIssues := h.check(opts.ProtoPackage, opts.BreakFailedCount)
+	if len(checkIssues) > 0 {
+		return &CheckError{Issues: checkIssues, Format: opts.ErrorFormat}
+	}
+	return nil
 }
 
 func (h *Hub) CheckCompatibility(dir, newDir string, format format.Format, options ...Option) error {
 	opts := ParseOptions(options...)
 	// load new hub
-	loadErr := h.load(loadTypeNew, opts.ProtoPackage, newDir, format, opts.LoadOptions...)
-	if loadErr != nil && !opts.SkipLoadErrors {
-		return loadErr
+	newLoadIssues := h.load(loadTypeNew, opts.ProtoPackage, newDir, format, opts.LoadOptions...)
+	if len(newLoadIssues) > 0 && !opts.SkipLoadErrors {
+		return &CheckError{Issues: newLoadIssues, Format: opts.ErrorFormat}
 	}
 	newHub := tableau.NewHub()
 	newHub.SetMessagerMap(h.GetMessagerMap())
 	// load hub
-	loadErr1 := h.load(loadTypeOld, opts.ProtoPackage, dir, format, opts.LoadOptions...)
-	if loadErr1 != nil && !opts.SkipLoadErrors {
-		return loadErr1
+	oldLoadIssues := h.load(loadTypeOld, opts.ProtoPackage, dir, format, opts.LoadOptions...)
+	if len(oldLoadIssues) > 0 && !opts.SkipLoadErrors {
+		return &CheckError{Issues: append(newLoadIssues, oldLoadIssues...), Format: opts.ErrorFormat}
 	}
-	checkErr := h.checkCompatibility(newHub, opts.ProtoPackage, opts.BreakFailedCount)
-	return errors.Join(loadErr, loadErr1, checkErr)
+	compatIssues := h.checkCompatibility(newHub, opts.ProtoPackage, opts.BreakFailedCount)
+	allIssues := append(append(newLoadIssues, oldLoadIssues...), compatIssues...)
+	if len(allIssues) > 0 {
+		return &CheckError{Issues: allIssues, Format: opts.ErrorFormat}
+	}
+	return nil
 }
 
 type Options struct {
@@ -246,6 +376,12 @@ type Options struct {
 	//
 	// Default: nil.
 	LoadOptions []load.Option
+	// ErrorFormat controls how the returned error is formatted when printed.
+	// Use ErrorFormatText (default) or ErrorFormatJSON for built-in formats,
+	// or provide a custom func([]Issue) string for fully custom formatting.
+	//
+	// Default: ErrorFormatText.
+	ErrorFormat ErrorFormat
 }
 
 // Option is the functional option type.
@@ -279,11 +415,21 @@ func WithLoadOptions(options ...load.Option) Option {
 	}
 }
 
+// WithErrorFormat sets the format used when the returned error is printed.
+// Use ErrorFormatText (default) or ErrorFormatJSON for built-in formats,
+// or pass a custom func([]Issue) string for fully custom formatting.
+func WithErrorFormat(f ErrorFormat) Option {
+	return func(opts *Options) {
+		opts.ErrorFormat = f
+	}
+}
+
 // newDefault returns a default Options.
 func newDefault() *Options {
 	return &Options{
 		BreakFailedCount: 1,
 		ProtoPackage:     "protoconf",
+		ErrorFormat:      ErrorFormatText,
 	}
 }
 

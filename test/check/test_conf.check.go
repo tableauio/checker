@@ -17,7 +17,14 @@ type ActivityConf struct {
 }
 
 func (x *ActivityConf) Check(hub *tableau.Hub) error {
-	// TODO: implement here.
+	for _, activity := range x.Data().GetActivityMap() {
+		for _, chapter := range activity.GetChapterMap() {
+			_, err := hub.GetItemConf().Get1(chapter.GetAwardId())
+			if err != nil {
+				return fmt.Errorf("awardId: %v not found", chapter.GetAwardId())
+			}
+		}
+	}
 	return nil
 }
 
