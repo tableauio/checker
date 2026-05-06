@@ -284,7 +284,7 @@ func (h *Hub) check(protoPackage string, breakFailedCount int) []Issue {
 		err := checker.Check(h.Hub)
 		if err != nil {
 			workbook, worksheet := getBookAndSheet(protoPackage, name)
-				log.Errorf("--- FAIL: workbook %s, worksheet %s", workbook.GetName(), worksheet.GetName())
+			log.Errorf("--- FAIL: workbook %s, worksheet %s", workbook.GetName(), worksheet.GetName())
 			issues = append(issues, Issue{
 				Kind:      IssueKindCheck,
 				Message:   fmt.Sprintf("custom check failed: %+v", err),
@@ -313,7 +313,7 @@ func (h *Hub) checkCompatibility(newHub *tableau.Hub, protoPackage string, break
 		err := checker.CheckCompatibility(h.Hub, newHub)
 		if err != nil {
 			workbook, worksheet := getBookAndSheet(protoPackage, name)
-				log.Errorf("--- FAIL: workbook %s, worksheet %s", workbook.GetName(), worksheet.GetName())
+			log.Errorf("--- FAIL: workbook %s, worksheet %s", workbook.GetName(), worksheet.GetName())
 			issues = append(issues, Issue{
 				Kind:      IssueKindCompatibility,
 				Message:   fmt.Sprintf("custom check failed: %+v", err),
