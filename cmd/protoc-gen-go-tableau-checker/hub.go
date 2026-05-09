@@ -30,7 +30,6 @@ const staticHubContent = `
 	"github.com/tableauio/tableau/load"
 	"github.com/tableauio/tableau/log"
 	"github.com/tableauio/tableau/proto/tableaupb"
-	"github.com/tableauio/tableau/xerrors"
 	"google.golang.org/protobuf/encoding/protojson"
 	"google.golang.org/protobuf/proto"
 	"google.golang.org/protobuf/reflect/protoreflect"
@@ -65,13 +64,10 @@ func (i Issue) Error() string {
 		i.Message)
 }
 
-// protoJSONMarshaler serializes proto messages with correct field names.
-// encoding/json alone cannot handle proto messages correctly (e.g. enums become integers).
-var protoJSONMarshaler = protojson.MarshalOptions{EmitUnpopulated: false}
-
 // MarshalJSON encodes the issue as JSON, using protojson for proto fields
 // so that enum values are emitted as strings rather than integers.
 func (i Issue) MarshalJSON() ([]byte, error) {
+	marshaler := protojson.MarshalOptions{}
 	out := struct {
 		Kind      IssueKind       ` + "`" + `json:"kind"` + "`" + `
 		Message   string          ` + "`" + `json:"message"` + "`" + `
@@ -82,14 +78,14 @@ func (i Issue) MarshalJSON() ([]byte, error) {
 		Message: i.Message,
 	}
 	if i.Workbook != nil {
-		b, err := protoJSONMarshaler.Marshal(i.Workbook)
+		b, err := marshaler.Marshal(i.Workbook)
 		if err != nil {
 			return nil, err
 		}
 		out.Workbook = json.RawMessage(b)
 	}
 	if i.Worksheet != nil {
-		b, err := protoJSONMarshaler.Marshal(i.Worksheet)
+		b, err := marshaler.Marshal(i.Worksheet)
 		if err != nil {
 			return nil, err
 		}
@@ -137,15 +133,6 @@ func (e *CheckError) Error() string {
 		return ErrorFormatText(e.Issues)
 	}
 	return e.Format(e.Issues)
-}
-
-// Unwrap returns all issues as individual errors, enabling errors.Is/As traversal.
-func (e *CheckError) Unwrap() []error {
-	errs := make([]error, len(e.Issues))
-	for i, issue := range e.Issues {
-		errs[i] = issue
-	}
-	return errs
 }
 
 type checker interface {
@@ -223,7 +210,7 @@ func (h *Hub) load(loadType, protoPackage, dir string, f format.Format, options 
 				workbook, worksheet := getBookAndSheet(protoPackage, name)
 				issue := Issue{
 					Kind:      IssueKindLoad,
-					Message:   fmt.Sprintf("load failed: %+v", xerrors.NewDesc(err).ErrString(false)),
+					Message:   fmt.Sprintf("load failed: %s", err.Error()),
 					Workbook:  workbook,
 					Worksheet: worksheet,
 				}
