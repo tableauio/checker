@@ -27,9 +27,9 @@ func TestLoad(t *testing.T) {
 
 		var checkErr *check.CheckError
 		require.True(t, errors.As(err, &checkErr))
-		assert.Greater(t, len(checkErr.Result.GetIssues()), 0)
-		for _, issue := range checkErr.Result.GetIssues() {
-			assert.Equal(t, check.Issue_KIND_LOAD, issue.Kind)
+		assert.Greater(t, len(checkErr.Result.Issues), 0)
+		for _, issue := range checkErr.Result.Issues {
+			assert.Equal(t, check.IssueKindLoad, issue.Kind)
 		}
 
 		errStr := err.Error()
@@ -42,14 +42,14 @@ func TestLoad(t *testing.T) {
 
 		var checkErr *check.CheckError
 		require.True(t, errors.As(err, &checkErr))
-		assert.Greater(t, len(checkErr.Result.GetIssues()), 0)
-		for _, issue := range checkErr.Result.GetIssues() {
-			assert.Equal(t, check.Issue_KIND_LOAD, issue.Kind)
+		assert.Greater(t, len(checkErr.Result.Issues), 0)
+		for _, issue := range checkErr.Result.Issues {
+			assert.Equal(t, check.IssueKindLoad, issue.Kind)
 		}
 
 		errStr := err.Error()
 		assert.Contains(t, errStr, `"issues"`)
-		assert.Contains(t, errStr, `"kind":"KIND_LOAD"`)
+		assert.Contains(t, errStr, `"kind":"load"`)
 		assert.Contains(t, errStr, `"load failed:`)
 	})
 }
@@ -69,8 +69,8 @@ func TestCheck(t *testing.T) {
 
 		var checkErr *check.CheckError
 		require.True(t, errors.As(err, &checkErr))
-		assert.Len(t, checkErr.Result.GetIssues(), 1)
-		assert.Equal(t, check.Issue_KIND_CHECK, checkErr.Result.GetIssues()[0].Kind)
+		assert.Len(t, checkErr.Result.Issues, 1)
+		assert.Equal(t, check.IssueKindCheck, checkErr.Result.Issues[0].Kind)
 
 		errStr := err.Error()
 		assert.Contains(t, errStr, "error: workbook Test.xlsx")
@@ -84,20 +84,24 @@ func TestCheck(t *testing.T) {
 
 		var checkErr *check.CheckError
 		require.True(t, errors.As(err, &checkErr))
-		assert.Len(t, checkErr.Result.GetIssues(), 1)
-		assert.Equal(t, check.Issue_KIND_CHECK, checkErr.Result.GetIssues()[0].Kind)
+		assert.Len(t, checkErr.Result.Issues, 1)
+		assert.Equal(t, check.IssueKindCheck, checkErr.Result.Issues[0].Kind)
 
-		errStr := err.Error()
+		// Workbook/Worksheet use protojson field names (camelCase).
 		assert.JSONEq(t, `{
 			"issues": [
 				{
-					"kind": "KIND_CHECK",
+					"kind": "check",
 					"message": "custom check failed: awardId: 0 not found",
 					"workbook": {"name": "Test.xlsx"},
-					"worksheet": {"name": "Activity", "orderedMap": true, "index": ["ChapterID", "ChapterName@NamedChapter", "SectionItemId@Award"]}
+					"worksheet": {
+						"name": "Activity",
+						"orderedMap": true,
+						"index": ["ChapterID", "ChapterName@NamedChapter", "SectionItemId@Award"]
+					}
 				}
 			]
-		}`, errStr)
+		}`, err.Error())
 	})
 }
 
@@ -117,15 +121,15 @@ func TestCheckCompatibility(t *testing.T) {
 
 		var checkErr *check.CheckError
 		require.True(t, errors.As(err, &checkErr))
-		assert.Greater(t, len(checkErr.Result.GetIssues()), 0)
+		assert.Greater(t, len(checkErr.Result.Issues), 0)
 
 		// Should contain both load and compatibility issues
-		kindSet := make(map[check.Issue_Kind]bool)
-		for _, issue := range checkErr.Result.GetIssues() {
+		kindSet := make(map[check.IssueKind]bool)
+		for _, issue := range checkErr.Result.Issues {
 			kindSet[issue.Kind] = true
 		}
-		assert.True(t, kindSet[check.Issue_KIND_LOAD], "expected load issues")
-		assert.True(t, kindSet[check.Issue_KIND_COMPATIBILITY], "expected compatibility issues")
+		assert.True(t, kindSet[check.IssueKindLoad], "expected load issues")
+		assert.True(t, kindSet[check.IssueKindCompatibility], "expected compatibility issues")
 
 		errStr := err.Error()
 		assert.Contains(t, errStr, "error: workbook Test.xlsx")
@@ -137,21 +141,21 @@ func TestCheckCompatibility(t *testing.T) {
 
 		var checkErr *check.CheckError
 		require.True(t, errors.As(err, &checkErr))
-		assert.Greater(t, len(checkErr.Result.GetIssues()), 0)
+		assert.Greater(t, len(checkErr.Result.Issues), 0)
 
 		// Should contain both load and compatibility issues
-		kindSet := make(map[check.Issue_Kind]bool)
-		for _, issue := range checkErr.Result.GetIssues() {
+		kindSet := make(map[check.IssueKind]bool)
+		for _, issue := range checkErr.Result.Issues {
 			kindSet[issue.Kind] = true
 		}
-		assert.True(t, kindSet[check.Issue_KIND_LOAD], "expected load issues")
-		assert.True(t, kindSet[check.Issue_KIND_COMPATIBILITY], "expected compatibility issues")
+		assert.True(t, kindSet[check.IssueKindLoad], "expected load issues")
+		assert.True(t, kindSet[check.IssueKindCompatibility], "expected compatibility issues")
 
 		// Note: cannot use assert.JSONEq here because the number of load issues
 		// depends on testdata files present, making the full JSON non-deterministic.
 		errStr := err.Error()
 		assert.Contains(t, errStr, `"issues"`)
-		assert.Contains(t, errStr, `"kind":"KIND_LOAD"`)
-		assert.Contains(t, errStr, `"kind":"KIND_COMPATIBILITY"`)
+		assert.Contains(t, errStr, `"kind":"load"`)
+		assert.Contains(t, errStr, `"kind":"compatibility"`)
 	})
 }

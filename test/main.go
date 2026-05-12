@@ -16,7 +16,6 @@ import (
 	"github.com/tableauio/tableau/log"
 	"github.com/tableauio/tableau/proto/tableaupb"
 )
-
 var protoPkg = "protoconf"
 var pathPrefix = ""
 
@@ -55,9 +54,9 @@ func main() {
 		msgs := make([]string, len(result.Issues))
 		for i, issue := range result.Issues {
 			msgs[i] = fmt.Sprintf("error: workbook %s, worksheet %s, %s",
-				issue.GetWorkbook().GetName(),
-				issue.GetWorksheet().GetName(),
-				issue.GetMessage())
+				issue.Workbook.GetName(),
+				issue.Worksheet.GetName(),
+				issue.Message)
 		}
 		return strings.Join(msgs, "\n")
 	})

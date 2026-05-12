@@ -1,4 +1,5 @@
 
+	"encoding/json"
 	"fmt"
 	"strings"
 	"sync"
@@ -13,12 +14,63 @@
 	"google.golang.org/protobuf/reflect/protoregistry"
 )
 
+// IssueKind is the kind of a check issue.
+type IssueKind string
+
+const (
+	IssueKindLoad          IssueKind = "load"
+	IssueKindCheck         IssueKind = "check"
+	IssueKindCompatibility IssueKind = "compatibility"
+)
+
+// Issue represents a single structured check error.
+type Issue struct {
+	Kind      IssueKind                   `json:"kind"`
+	Message   string                      `json:"message"`
+	Workbook  *tableaupb.WorkbookOptions  `json:"workbook,omitempty"`
+	Worksheet *tableaupb.WorksheetOptions `json:"worksheet,omitempty"`
+}
+
 // Error returns the issue as a human-readable string.
-func issueError(i *Issue) string {
+func (i *Issue) Error() string {
 	return fmt.Sprintf("error: workbook %s, worksheet %s, %s",
-		i.GetWorkbook().GetName(),
-		i.GetWorksheet().GetName(),
-		i.GetMessage())
+		i.Workbook.GetName(),
+		i.Worksheet.GetName(),
+		i.Message)
+}
+
+// MarshalJSON uses protojson for Workbook/Worksheet fields to emit correct proto field names.
+func (i *Issue) MarshalJSON() ([]byte, error) {
+	marshaler := protojson.MarshalOptions{}
+	out := struct {
+		Kind      IssueKind       `json:"kind"`
+		Message   string          `json:"message"`
+		Workbook  json.RawMessage `json:"workbook,omitempty"`
+		Worksheet json.RawMessage `json:"worksheet,omitempty"`
+	}{
+		Kind:    i.Kind,
+		Message: i.Message,
+	}
+	if i.Workbook != nil {
+		b, err := marshaler.Marshal(i.Workbook)
+		if err != nil {
+			return nil, err
+		}
+		out.Workbook = json.RawMessage(b)
+	}
+	if i.Worksheet != nil {
+		b, err := marshaler.Marshal(i.Worksheet)
+		if err != nil {
+			return nil, err
+		}
+		out.Worksheet = json.RawMessage(b)
+	}
+	return json.Marshal(out)
+}
+
+// CheckResult holds the result of a check operation, including all issues.
+type CheckResult struct {
+	Issues []*Issue `json:"issues"`
 }
 
 // ErrorFormat is a function type that formats a CheckResult into a string.
@@ -28,7 +80,7 @@ type ErrorFormat func(*CheckResult) string
 var ErrorFormatText ErrorFormat = func(result *CheckResult) string {
 	msgs := make([]string, len(result.Issues))
 	for i, issue := range result.Issues {
-		msgs[i] = issueError(issue)
+		msgs[i] = issue.Error()
 	}
 	return strings.Join(msgs, "\n")
 }
@@ -36,7 +88,7 @@ var ErrorFormatText ErrorFormat = func(result *CheckResult) string {
 // ErrorFormatJSON formats the CheckResult as a JSON object.
 // Falls back to ErrorFormatText if marshaling fails.
 var ErrorFormatJSON ErrorFormat = func(result *CheckResult) string {
-	b, err := protojson.Marshal(result)
+	b, err := json.Marshal(result)
 	if err != nil {
 		log.Errorf("failed to marshal result to JSON, falling back to text format: %+v", err)
 		return ErrorFormatText(result)
@@ -134,7 +186,7 @@ func (h *Hub) load(loadType, protoPackage, dir string, f format.Format, options 
 			if err := msger.Load(dir, f, mopts); err != nil {
 				workbook, worksheet := getBookAndSheet(protoPackage, name)
 				issue := &Issue{
-					Kind:      Issue_KIND_LOAD,
+					Kind:      IssueKindLoad,
 					Message:   fmt.Sprintf("load failed: %s", err.Error()),
 					Workbook:  workbook,
 					Worksheet: worksheet,
@@ -190,7 +242,7 @@ func (h *Hub) check(protoPackage string, breakFailedCount int) []*Issue {
 			workbook, worksheet := getBookAndSheet(protoPackage, name)
 			log.Errorf("--- FAIL: workbook %s, worksheet %s", workbook.GetName(), worksheet.GetName())
 			issues = append(issues, &Issue{
-				Kind:      Issue_KIND_CHECK,
+				Kind:      IssueKindCheck,
 				Message:   fmt.Sprintf("custom check failed: %+v", err),
 				Workbook:  workbook,
 				Worksheet: worksheet,
@@ -219,7 +271,7 @@ func (h *Hub) checkCompatibility(newHub *tableau.Hub, protoPackage string, break
 			workbook, worksheet := getBookAndSheet(protoPackage, name)
 			log.Errorf("--- FAIL: workbook %s, worksheet %s", workbook.GetName(), worksheet.GetName())
 			issues = append(issues, &Issue{
-				Kind:      Issue_KIND_COMPATIBILITY,
+				Kind:      IssueKindCompatibility,
 				Message:   fmt.Sprintf("custom check failed: %+v", err),
 				Workbook:  workbook,
 				Worksheet: worksheet,
