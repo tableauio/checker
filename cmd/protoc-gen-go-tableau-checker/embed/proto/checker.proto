@@ -1,0 +1,31 @@
+// Checker - tableau checker data interchange format
+// https://github.com/tableauio/checker
+
+syntax = "proto3";
+
+package check;
+
+import "tableau/protobuf/tableau.proto";
+
+option go_package = "github.com/tableauio/checker/check";
+
+// Issue represents a single structured check error.
+message Issue {
+  // Kind is the issue kind.
+  enum Kind {
+    KIND_UNSPECIFIED   = 0;
+    KIND_LOAD          = 1;
+    KIND_CHECK         = 2;
+    KIND_COMPATIBILITY = 3;
+  }
+  // kind is the issue kind: load, check, or compatibility.
+  Kind kind = 1;
+  string message = 2;
+  tableau.WorkbookOptions workbook = 3;
+  tableau.WorksheetOptions worksheet = 4;
+}
+
+// CheckResult holds the result of a check operation, including all issues.
+message CheckResult {
+  repeated Issue issues = 1;
+}

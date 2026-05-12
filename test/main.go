@@ -51,13 +51,13 @@ func main() {
 		// os.Exit(1)
 	}
 
-	briefFormat := check.ErrorFormat(func(issues []check.Issue) string {
-		msgs := make([]string, len(issues))
-		for i, issue := range issues {
+	briefFormat := check.ErrorFormat(func(result *check.CheckResult) string {
+		msgs := make([]string, len(result.Issues))
+		for i, issue := range result.Issues {
 			msgs[i] = fmt.Sprintf("error: workbook %s, worksheet %s, %s",
-				issue.Workbook.GetName(),
-				issue.Worksheet.GetName(),
-				issue.Message)
+				issue.GetWorkbook().GetName(),
+				issue.GetWorksheet().GetName(),
+				issue.GetMessage())
 		}
 		return strings.Join(msgs, "\n")
 	})

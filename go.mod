@@ -3,6 +3,7 @@ module github.com/tableauio/checker
 go 1.24.0
 
 require (
+	github.com/bufbuild/protocompile v0.10.0
 	github.com/pmezard/go-difflib v1.0.0
 	github.com/stretchr/testify v1.10.0
 	github.com/tableauio/loader v0.5.0
@@ -12,7 +13,6 @@ require (
 
 require (
 	github.com/antchfx/xpath v1.2.3 // indirect
-	github.com/bufbuild/protocompile v0.10.0 // indirect
 	github.com/davecgh/go-spew v1.1.1 // indirect
 	github.com/emirpasic/gods v1.18.1 // indirect
 	github.com/google/go-cmp v0.7.0 // indirect

@@ -34,7 +34,6 @@ func main() {
 			}
 			generateMessager(gen, f)
 		}
-		generateHub(gen)
-		return nil
+		return generateHub(gen)
 	})
 }
