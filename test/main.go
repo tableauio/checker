@@ -38,8 +38,10 @@ func main() {
 		Filename: "_logs/checker.log",
 		Sink:     "MULTI",
 	})
+
 	err1 := check.NewHub(tableau.Filter(Filter)).Check("./testdata/", format.JSON,
 		check.BreakFailedCount(2),
+		check.WithErrorFormat(check.ErrorFormatJSON),
 		check.WithLoadOptions(load.IgnoreUnknownFields()),
 	)
 	if err1 != nil {
@@ -47,9 +49,11 @@ func main() {
 		// Uncomment the line below to exit with a non-zero code when used as a CLI tool.
 		// os.Exit(1)
 	}
+
 	err2 := check.NewHub(tableau.Filter(Filter)).CheckCompatibility("./testdata/", "./testdata1/", format.JSON,
 		check.SkipLoadErrors(),
 		check.BreakFailedCount(2),
+		check.WithErrorFormat(check.ErrorFormatText),
 		check.WithLoadOptions(load.IgnoreUnknownFields()),
 	)
 	if err2 != nil {
