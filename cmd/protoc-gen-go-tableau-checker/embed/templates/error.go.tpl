@@ -80,7 +80,7 @@ var ErrorFormatText ErrorFormat = func(e *CheckError) string {
 var ErrorFormatJSON ErrorFormat = func(e *CheckError) string {
 	b, err := json.Marshal(e)
 	if err != nil {
-		log.Errorf("failed to marshal result to JSON: %+v", err)
+		log.Errorf("failed to marshal CheckError to JSON: %+v", err)
 		return ""
 	}
 	return string(b)
