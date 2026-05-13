@@ -15,6 +15,7 @@ import (
 	"github.com/tableauio/tableau/log"
 	"github.com/tableauio/tableau/proto/tableaupb"
 )
+
 var protoPkg = "protoconf"
 var pathPrefix = ""
 
@@ -52,7 +53,7 @@ func main() {
 	err2 := check.NewHub(tableau.Filter(Filter)).CheckCompatibility("./testdata/", "./testdata1/", format.JSON,
 		check.SkipLoadErrors(),
 		check.BreakFailedCount(2),
-		check.WithErrorFormat(check.ErrorFormatBasic),
+		check.WithErrorFormat(check.ErrorFormatText),
 		check.WithLoadOptions(load.IgnoreUnknownFields()),
 	)
 	if err2 != nil {

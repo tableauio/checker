@@ -69,27 +69,13 @@ func (i *Issue) MarshalJSON() ([]byte, error) {
 	return json.Marshal(out)
 }
 
-// CheckResult holds the result of a check operation, including all issues.
-type CheckResult struct {
-	Issues []*Issue `json:"issues"`
-}
-
-// ErrorFormat is a function type that formats a CheckResult into a string.
-type ErrorFormat func(*CheckResult) string
+// ErrorFormat is a function type that formats a CheckError into a string.
+type ErrorFormat func(*CheckError) string
 
 // ErrorFormatText formats issues as human-readable text lines (default).
-var ErrorFormatText ErrorFormat = func(result *CheckResult) string {
-	msgs := make([]string, len(result.Issues))
-	for i, issue := range result.Issues {
-		msgs[i] = issue.Error()
-	}
-	return strings.Join(msgs, "\n")
-}
-
-// ErrorFormatBasic formats issues with only workbook/worksheet names
-var ErrorFormatBasic ErrorFormat = func(result *CheckResult) string {
-	msgs := make([]string, len(result.Issues))
-	for i, issue := range result.Issues {
+var ErrorFormatText ErrorFormat = func(e *CheckError) string {
+	msgs := make([]string, len(e.Issues))
+	for i, issue := range e.Issues {
 		msgs[i] = fmt.Sprintf("error: workbook %s, worksheet %s",
 			issue.Workbook.GetName(),
 			issue.Worksheet.GetName())
@@ -97,29 +83,27 @@ var ErrorFormatBasic ErrorFormat = func(result *CheckResult) string {
 	return strings.Join(msgs, "\n")
 }
 
-// ErrorFormatJSON formats the CheckResult as a JSON object.
-// Falls back to ErrorFormatText if marshaling fails.
-var ErrorFormatJSON ErrorFormat = func(result *CheckResult) string {
-	b, err := json.Marshal(result)
+// ErrorFormatJSON formats the CheckError as a JSON object.
+var ErrorFormatJSON ErrorFormat = func(e *CheckError) string {
+	b, err := json.Marshal(e)
 	if err != nil {
-		log.Errorf("failed to marshal result to JSON, falling back to text format: %+v", err)
-		return ErrorFormatText(result)
+		log.Errorf("failed to marshal result to JSON: %+v", err)
+		return ""
 	}
 	return string(b)
 }
 
-// CheckError is the error type returned by Check and CheckCompatibility,
-// wrapping the CheckResult and formatting it via ErrorFormat.
+// CheckError is the error type returned by Check and CheckCompatibility.
 type CheckError struct {
-	Result *CheckResult
-	Format ErrorFormat
+	Issues []*Issue `json:"issues"`
+	format ErrorFormat
 }
 
 // Error formats the result using the configured ErrorFormat.
-// Falls back to ErrorFormatText if Format is nil.
+// Falls back to ErrorFormatText if format is nil.
 func (e *CheckError) Error() string {
-	if e.Format == nil {
-		return ErrorFormatText(e.Result)
+	if e.format == nil {
+		return ErrorFormatText(e)
 	}
-	return e.Format(e.Result)
+	return e.format(e)
 }

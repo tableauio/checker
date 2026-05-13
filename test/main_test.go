@@ -27,13 +27,13 @@ func TestLoad(t *testing.T) {
 
 		var checkErr *check.CheckError
 		require.True(t, errors.As(err, &checkErr))
-		assert.Greater(t, len(checkErr.Result.Issues), 0)
-		for _, issue := range checkErr.Result.Issues {
+		assert.Greater(t, len(checkErr.Issues), 0)
+		for _, issue := range checkErr.Issues {
 			assert.Equal(t, check.IssueKindLoad, issue.Kind)
 		}
 
 		errStr := err.Error()
-		assert.Contains(t, errStr, "load failed:")
+		assert.Contains(t, errStr, "error: workbook")
 	})
 
 	t.Run("JSONFormat", func(t *testing.T) {
@@ -42,8 +42,8 @@ func TestLoad(t *testing.T) {
 
 		var checkErr *check.CheckError
 		require.True(t, errors.As(err, &checkErr))
-		assert.Greater(t, len(checkErr.Result.Issues), 0)
-		for _, issue := range checkErr.Result.Issues {
+		assert.Greater(t, len(checkErr.Issues), 0)
+		for _, issue := range checkErr.Issues {
 			assert.Equal(t, check.IssueKindLoad, issue.Kind)
 		}
 
@@ -69,13 +69,12 @@ func TestCheck(t *testing.T) {
 
 		var checkErr *check.CheckError
 		require.True(t, errors.As(err, &checkErr))
-		assert.Len(t, checkErr.Result.Issues, 1)
-		assert.Equal(t, check.IssueKindCheck, checkErr.Result.Issues[0].Kind)
+		assert.Len(t, checkErr.Issues, 1)
+		assert.Equal(t, check.IssueKindCheck, checkErr.Issues[0].Kind)
 
 		errStr := err.Error()
 		assert.Contains(t, errStr, "error: workbook Test.xlsx")
 		assert.Contains(t, errStr, "worksheet Activity")
-		assert.Contains(t, errStr, "custom check failed: awardId: 0 not found")
 	})
 
 	t.Run("JSONFormat", func(t *testing.T) {
@@ -84,8 +83,8 @@ func TestCheck(t *testing.T) {
 
 		var checkErr *check.CheckError
 		require.True(t, errors.As(err, &checkErr))
-		assert.Len(t, checkErr.Result.Issues, 1)
-		assert.Equal(t, check.IssueKindCheck, checkErr.Result.Issues[0].Kind)
+		assert.Len(t, checkErr.Issues, 1)
+		assert.Equal(t, check.IssueKindCheck, checkErr.Issues[0].Kind)
 
 		// Workbook/Worksheet use protojson field names (camelCase).
 		assert.JSONEq(t, `{
@@ -121,11 +120,11 @@ func TestCheckCompatibility(t *testing.T) {
 
 		var checkErr *check.CheckError
 		require.True(t, errors.As(err, &checkErr))
-		assert.Greater(t, len(checkErr.Result.Issues), 0)
+		assert.Greater(t, len(checkErr.Issues), 0)
 
 		// Should contain both load and compatibility issues
 		kindSet := make(map[check.IssueKind]bool)
-		for _, issue := range checkErr.Result.Issues {
+		for _, issue := range checkErr.Issues {
 			kindSet[issue.Kind] = true
 		}
 		assert.True(t, kindSet[check.IssueKindLoad], "expected load issues")
@@ -141,11 +140,11 @@ func TestCheckCompatibility(t *testing.T) {
 
 		var checkErr *check.CheckError
 		require.True(t, errors.As(err, &checkErr))
-		assert.Greater(t, len(checkErr.Result.Issues), 0)
+		assert.Greater(t, len(checkErr.Issues), 0)
 
 		// Should contain both load and compatibility issues
 		kindSet := make(map[check.IssueKind]bool)
-		for _, issue := range checkErr.Result.Issues {
+		for _, issue := range checkErr.Issues {
 			kindSet[issue.Kind] = true
 		}
 		assert.True(t, kindSet[check.IssueKindLoad], "expected load issues")

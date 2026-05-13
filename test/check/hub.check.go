@@ -199,11 +199,11 @@ func (h *Hub) Check(dir string, format format.Format, options ...Option) error {
 	// load hub
 	loadIssues := h.load(loadTypeDefault, opts.ProtoPackage, dir, format, opts.LoadOptions...)
 	if len(loadIssues) > 0 {
-		return &CheckError{Result: &CheckResult{Issues: loadIssues}, Format: opts.ErrorFormat}
+		return &CheckError{Issues: loadIssues, format: opts.ErrorFormat}
 	}
 	checkIssues := h.check(opts.ProtoPackage, opts.BreakFailedCount)
 	if len(checkIssues) > 0 {
-		return &CheckError{Result: &CheckResult{Issues: checkIssues}, Format: opts.ErrorFormat}
+		return &CheckError{Issues: checkIssues, format: opts.ErrorFormat}
 	}
 	return nil
 }
@@ -213,19 +213,19 @@ func (h *Hub) CheckCompatibility(dir, newDir string, format format.Format, optio
 	// load new hub
 	newLoadIssues := h.load(loadTypeNew, opts.ProtoPackage, newDir, format, opts.LoadOptions...)
 	if len(newLoadIssues) > 0 && !opts.SkipLoadErrors {
-		return &CheckError{Result: &CheckResult{Issues: newLoadIssues}, Format: opts.ErrorFormat}
+		return &CheckError{Issues: newLoadIssues, format: opts.ErrorFormat}
 	}
 	newHub := tableau.NewHub()
 	newHub.SetMessagerMap(h.GetMessagerMap())
 	// load hub
 	oldLoadIssues := h.load(loadTypeOld, opts.ProtoPackage, dir, format, opts.LoadOptions...)
 	if len(oldLoadIssues) > 0 && !opts.SkipLoadErrors {
-		return &CheckError{Result: &CheckResult{Issues: append(newLoadIssues, oldLoadIssues...)}, Format: opts.ErrorFormat}
+		return &CheckError{Issues: append(newLoadIssues, oldLoadIssues...), format: opts.ErrorFormat}
 	}
 	compatIssues := h.checkCompatibility(newHub, opts.ProtoPackage, opts.BreakFailedCount)
 	allIssues := append(append(newLoadIssues, oldLoadIssues...), compatIssues...)
 	if len(allIssues) > 0 {
-		return &CheckError{Result: &CheckResult{Issues: allIssues}, Format: opts.ErrorFormat}
+		return &CheckError{Issues: allIssues, format: opts.ErrorFormat}
 	}
 	return nil
 }
