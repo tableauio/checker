@@ -1,7 +1,6 @@
 package main
 
 import (
-	"fmt"
 	"strings"
 
 	"github.com/tableauio/checker/test/check"
@@ -50,21 +49,10 @@ func main() {
 		// os.Exit(1)
 	}
 
-	briefFormat := check.ErrorFormat(func(result *check.CheckResult) string {
-		msgs := make([]string, len(result.Issues))
-		for i, issue := range result.Issues {
-			msgs[i] = fmt.Sprintf("error: workbook %s, worksheet %s, %s",
-				issue.Workbook.GetName(),
-				issue.Worksheet.GetName(),
-				issue.Message)
-		}
-		return strings.Join(msgs, "\n")
-	})
-
 	err2 := check.NewHub(tableau.Filter(Filter)).CheckCompatibility("./testdata/", "./testdata1/", format.JSON,
 		check.SkipLoadErrors(),
 		check.BreakFailedCount(2),
-		check.WithErrorFormat(briefFormat),
+		check.WithErrorFormat(check.ErrorFormatBasic),
 		check.WithLoadOptions(load.IgnoreUnknownFields()),
 	)
 	if err2 != nil {
