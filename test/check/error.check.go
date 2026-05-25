@@ -76,10 +76,7 @@ type ErrorFormat func(*CheckError) string
 var ErrorFormatText ErrorFormat = func(e *CheckError) string {
 	msgs := make([]string, len(e.Issues))
 	for i, issue := range e.Issues {
-		msgs[i] = fmt.Sprintf("error: workbook %s, worksheet %s, custom check failed: %+v",
-			issue.Workbook.GetName(),
-			issue.Worksheet.GetName(),
-			issue.Message)
+		msgs[i] = issue.Error()
 	}
 	return strings.Join(msgs, "\n")
 }
