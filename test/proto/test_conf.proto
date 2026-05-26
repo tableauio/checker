@@ -6,7 +6,7 @@ import "tableau/protobuf/tableau.proto";
 import "common_conf.proto";
 
 option (tableau.workbook) = {
-  name: "Test.xlsx"
+  name: "Test#*.csv"
 };
 
 message ActivityConf {
