@@ -15,7 +15,7 @@ func generateError(gen *protogen.Plugin) error {
 	}
 	filename := filepath.Join("error." + checkExt + ".go")
 	g := gen.NewGeneratedFile(filename, "")
-	generateCommonHeader(gen, g, false)
+	generateCommonHeader(gen, g, true)
 	g.P()
 	g.P("package ", params.pkg)
 	g.P("import (")
