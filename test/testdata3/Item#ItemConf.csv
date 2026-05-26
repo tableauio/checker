@@ -1,0 +1,6 @@
+ID,Name,PathDir,PathName,Expiry,Duration
+"map<uint32, Item>",string,{Path}string,string,datetime,duration
+Item ID,Item Name,Path Dir,Path Name,Expiry Time,Duration
+not-an-int,coin1,/home/protoconf/,icon.png,2021-01-01 18:00:00,1m0s
+2,coin2,/home/protoconf/,icon.png,not-a-datetime,2m0s
+3,coin3,/home/protoconf/,icon.png,2023-01-01 08:00:00,not-a-duration

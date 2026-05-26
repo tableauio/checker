@@ -7,7 +7,7 @@ import (
 	"google.golang.org/protobuf/compiler/protogen"
 )
 
-// generateError generates the error file containing Issue, CheckResult, ErrorFormat, and CheckError types.
+// generateError generates the error file containing Issue, ErrorFormat, and Error types.
 func generateError(gen *protogen.Plugin) error {
 	errorTemplateBytes, err := efs.ReadFile("embed/templates/error.go.tpl")
 	if err != nil {
@@ -15,7 +15,7 @@ func generateError(gen *protogen.Plugin) error {
 	}
 	filename := filepath.Join("error." + checkExt + ".go")
 	g := gen.NewGeneratedFile(filename, "")
-	generateCommonHeader(gen, g, false)
+	generateCommonHeader(gen, g, true)
 	g.P()
 	g.P("package ", params.pkg)
 	g.P("import (")
