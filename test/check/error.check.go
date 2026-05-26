@@ -32,8 +32,8 @@ type Issue struct {
 	Worksheet *tableaupb.WorksheetOptions `json:"worksheet,omitempty"`
 }
 
-// Error returns the issue as a human-readable string.
-func (i *Issue) Error() string {
+// String returns the issue as a human-readable string.
+func (i *Issue) String() string {
 	return fmt.Sprintf("error: workbook %s, worksheet %s, %s",
 		i.Workbook.GetName(),
 		i.Worksheet.GetName(),
@@ -69,37 +69,37 @@ func (i *Issue) MarshalJSON() ([]byte, error) {
 	return json.Marshal(out)
 }
 
-// ErrorFormat is a function type that formats a CheckError into a string.
-type ErrorFormat func(*CheckError) string
+// ErrorFormat is a function type that formats an Error into a string.
+type ErrorFormat func(*Error) string
 
 // ErrorFormatText formats issues as human-readable text lines (default).
-var ErrorFormatText ErrorFormat = func(e *CheckError) string {
+var ErrorFormatText ErrorFormat = func(e *Error) string {
 	msgs := make([]string, len(e.Issues))
 	for i, issue := range e.Issues {
-		msgs[i] = issue.Error()
+		msgs[i] = issue.String()
 	}
 	return strings.Join(msgs, "\n")
 }
 
-// ErrorFormatJSON formats the CheckError as a JSON object.
-var ErrorFormatJSON ErrorFormat = func(e *CheckError) string {
+// ErrorFormatJSON formats the Error as a JSON object.
+var ErrorFormatJSON ErrorFormat = func(e *Error) string {
 	b, err := json.Marshal(e)
 	if err != nil {
-		log.Errorf("failed to marshal CheckError to JSON: %+v", err)
+		log.Errorf("failed to marshal Error to JSON: %+v", err)
 		return ""
 	}
 	return string(b)
 }
 
-// CheckError is the error type returned by Check and CheckCompatibility.
-type CheckError struct {
+// Error is the error type returned by Check and CheckCompatibility.
+type Error struct {
 	Issues []*Issue `json:"issues"`
 	format ErrorFormat
 }
 
 // Error formats the result using the configured ErrorFormat.
 // Falls back to ErrorFormatText if format is nil.
-func (e *CheckError) Error() string {
+func (e *Error) Error() string {
 	if e.format == nil {
 		return ErrorFormatText(e)
 	}

@@ -50,7 +50,7 @@ func TestLoad(t *testing.T) {
 		err := run(check.ErrorFormatText)
 		require.Error(t, err)
 
-		var checkErr *check.CheckError
+		var checkErr *check.Error
 		require.True(t, errors.As(err, &checkErr))
 		assert.Greater(t, len(checkErr.Issues), 0)
 		for _, issue := range checkErr.Issues {
@@ -74,7 +74,7 @@ func TestLoad(t *testing.T) {
 		err := run(check.ErrorFormatJSON)
 		require.Error(t, err)
 
-		var checkErr *check.CheckError
+		var checkErr *check.Error
 		require.True(t, errors.As(err, &checkErr))
 		assert.Greater(t, len(checkErr.Issues), 0)
 		for _, issue := range checkErr.Issues {
@@ -104,7 +104,7 @@ func TestCheck(t *testing.T) {
 		err := run(check.ErrorFormatText)
 		require.Error(t, err)
 
-		var checkErr *check.CheckError
+		var checkErr *check.Error
 		require.True(t, errors.As(err, &checkErr))
 		assert.Len(t, checkErr.Issues, 1)
 		issue := checkErr.Issues[0]
@@ -123,7 +123,7 @@ func TestCheck(t *testing.T) {
 		err := run(check.ErrorFormatJSON)
 		require.Error(t, err)
 
-		var checkErr *check.CheckError
+		var checkErr *check.Error
 		require.True(t, errors.As(err, &checkErr))
 		assert.Len(t, checkErr.Issues, 1)
 		assert.Equal(t, check.IssueKindCheck, checkErr.Issues[0].Kind)
@@ -169,7 +169,7 @@ func TestCheckCompatibility(t *testing.T) {
 		err := run(check.ErrorFormatText)
 		require.Error(t, err)
 
-		var checkErr *check.CheckError
+		var checkErr *check.Error
 		require.True(t, errors.As(err, &checkErr))
 		assert.Greater(t, len(checkErr.Issues), 0)
 
@@ -201,7 +201,7 @@ func TestCheckCompatibility(t *testing.T) {
 		err := run(check.ErrorFormatJSON)
 		require.Error(t, err)
 
-		var checkErr *check.CheckError
+		var checkErr *check.Error
 		require.True(t, errors.As(err, &checkErr))
 		assert.Greater(t, len(checkErr.Issues), 0)
 
