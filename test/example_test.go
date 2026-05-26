@@ -1,10 +1,7 @@
 package main
 
 import (
-	"errors"
 	"fmt"
-	"sort"
-	"strings"
 
 	"github.com/tableauio/checker/test/check"
 	"github.com/tableauio/checker/test/protoconf/tableau"
@@ -34,18 +31,21 @@ func Example_check() {
 // Example_checkCompatibility demonstrates how to compare two snapshots of
 // generated config outputs for compatibility regressions.
 //
-// SkipLoadErrors lets the run proceed even if individual messagers fail to
-// load, and BreakFailedCount caps the number of issues collected per run.
+// To keep the example output deterministic, the Filter narrows the run to
+// the messagers whose error messages are stable single-liners (ItemConf as
+// the dependency + ActivityConf as the consumer that runs the custom
+// CheckCompatibility). This avoids pulling in messagers like ThemeConf
+// whose load errors include a multi-line file excerpt that would clutter
+// the example.
 //
-// Issues from CheckCompatibility are gathered concurrently across messagers,
-// so their order is not deterministic. The example unwraps the returned
-// *check.Error, sorts the issues by (workbook, worksheet, kind), and prints
-// a one-line summary per issue (kind + location + first line of message) so
-// the "Output:" assertion stays stable across runs.
+// The custom compatibility check on ActivityConf reports any ItemConf entry
+// that existed in the old snapshot but disappears in the new one.
 func Example_checkCompatibility() {
-	err := check.NewHub(tableau.Filter(Filter)).CheckCompatibility(
+	allowed := map[string]bool{"ItemConf": true, "ActivityConf": true}
+	filter := func(name string) bool { return allowed[name] && Filter(name) }
+
+	err := check.NewHub(tableau.Filter(filter)).CheckCompatibility(
 		"./testdata/", "./testdata1/", format.JSON,
-		check.SkipLoadErrors(),
 		check.BreakFailedCount(10),
 		check.WithLoadOptions(load.IgnoreUnknownFields()),
 	)
@@ -53,38 +53,7 @@ func Example_checkCompatibility() {
 		fmt.Println("compatible")
 		return
 	}
-
-	var ce *check.Error
-	if !errors.As(err, &ce) {
-		fmt.Println(err)
-		return
-	}
-
-	issues := append([]*check.Issue(nil), ce.Issues...)
-	sort.SliceStable(issues, func(i, j int) bool {
-		a, b := issues[i], issues[j]
-		if x, y := a.Workbook.GetName(), b.Workbook.GetName(); x != y {
-			return x < y
-		}
-		if x, y := a.Worksheet.GetName(), b.Worksheet.GetName(); x != y {
-			return x < y
-		}
-		return a.Kind < b.Kind
-	})
-
-	for _, issue := range issues {
-		// Use only the first line of the message: some custom checks
-		// (e.g. ItemConf) include a prototext dump whose map-field
-		// ordering is not stable across runs.
-		firstLine := strings.SplitN(issue.Message, "\n", 2)[0]
-		fmt.Printf("[%s] %s/%s: %s\n",
-			issue.Kind,
-			issue.Workbook.GetName(),
-			issue.Worksheet.GetName(),
-			firstLine)
-	}
+	fmt.Println(err)
 	// Output:
-	// [compatibility] Test#*.csv/Activity: custom check failed: load ItemConf successfully even it's checker is not registered
-	// [load] Test#*.csv/ChapterConf: load failed: failed to read file: testdata1/ChapterConf.json: open testdata1/ChapterConf.json: no such file or directory
-	// [load] Test#*.csv/ThemeConf: load failed: failed to unmarshal file "testdata1/ThemeConf.json" to message "protoconf.ThemeConf": proto: (line 9:22): invalid value for uint64 field value: "invalid-type-not-integer"
+	// error: workbook Test#*.csv, worksheet Activity, custom check failed: ItemConf incompatible: 5 item id(s) removed in new version: [2 3 2001 2002 2003]
 }

@@ -8,6 +8,7 @@ package check
 
 import (
 	"fmt"
+	"slices"
 
 	tableau "github.com/tableauio/checker/test/protoconf/tableau"
 )
@@ -28,9 +29,29 @@ func (x *ActivityConf) Check(hub *tableau.Hub) error {
 	return nil
 }
 
+// CheckCompatibility cross-checks ItemConf between the old and new hubs:
+// removing an item id is a breaking change for ActivityConf because every
+// chapter references an award id, so any item id that exists in the old
+// snapshot but disappears in the new one is reported.
+//
+// This check also implicitly proves that ItemConf is loaded successfully on
+// both sides even though ChapterConf / ThemeConf may have failed to load:
+// reaching here at all means GetItemConf() returned a populated message on
+// both hubs.
 func (x *ActivityConf) CheckCompatibility(hub, newHub *tableau.Hub) error {
-	return fmt.Errorf("load ItemConf successfully even it's checker is not registered\n\nItemConf(old): %v\n\nItemConf(new): %v",
-		hub.GetItemConf().Data(), newHub.GetItemConf().Data())
+	oldItems := hub.GetItemConf().Data().GetItemMap()
+	newItems := newHub.GetItemConf().Data().GetItemMap()
+	var removed []uint32
+	for id := range oldItems {
+		if _, ok := newItems[id]; !ok {
+			removed = append(removed, id)
+		}
+	}
+	if len(removed) == 0 {
+		return nil
+	}
+	slices.Sort(removed)
+	return fmt.Errorf("ItemConf incompatible: %d item id(s) removed in new version: %v", len(removed), removed)
 }
 
 type ChapterConf struct {

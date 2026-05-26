@@ -192,9 +192,10 @@ func TestCheckCompatibility(t *testing.T) {
 		assert.Contains(t, errStr, "error: workbook Test#*.csv")
 		assert.Contains(t, errStr, "load failed:")
 		assert.Contains(t, errStr, "custom check failed:")
-		// ActivityConf's CheckCompatibility intentionally fails with this message.
-		assert.Contains(t, errStr,
-			"load ItemConf successfully even it's checker is not registered")
+		// ActivityConf's CheckCompatibility reports ItemConf entries that
+		// existed in the old snapshot but were removed in the new one.
+		assert.Contains(t, errStr, "ItemConf incompatible:")
+		assert.Contains(t, errStr, "removed in new version:")
 	})
 
 	t.Run("JSONFormat", func(t *testing.T) {
