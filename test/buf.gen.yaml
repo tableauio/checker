@@ -7,7 +7,7 @@ plugins:
       [
         "go",
         "run",
-        "github.com/tableauio/loader/cmd/protoc-gen-go-tableau-loader@v0.5.0",
+        "github.com/tableauio/loader/cmd/protoc-gen-go-tableau-loader@v0.6.0",
       ]
     out: protoconf/tableau
     opt: paths=source_relative
