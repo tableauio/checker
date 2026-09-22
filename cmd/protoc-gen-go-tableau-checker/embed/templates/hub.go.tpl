@@ -151,8 +151,8 @@ func (h *Hub) load(loadType, dir string, f format.Format, options ...load.Option
 
 // getBookAndSheet resolves workbook/worksheet options from a messager's
 // underlying protobuf message descriptor. Returns nil, nil when the messager
-// has no message data; missing extensions yield nil options, which
-// Issue.String handles.
+// has no message data (e.g. custom/derived messagers); missing extensions
+// also yield nil options.
 func getBookAndSheet(msger tableau.Messager) (*tableaupb.WorkbookOptions, *tableaupb.WorksheetOptions) {
 	if msger == nil {
 		return nil, nil
