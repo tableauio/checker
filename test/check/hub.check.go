@@ -176,11 +176,11 @@ func getBookAndSheet(msger tableau.Messager) (*tableaupb.WorkbookOptions, *table
 func (h *Hub) check(breakFailedCount int) []*Issue {
 	issues := make([]*Issue, 0, len(h.checkers))
 	for _, name := range slices.Sorted(maps.Keys(h.checkers)) {
-		c := h.checkers[name]
+		checker := h.checkers[name]
 		log.Infof("=== RUN   %v", name)
-		err := c.Check(h.Hub)
+		err := checker.Check(h.Hub)
 		if err != nil {
-			workbook, worksheet := getBookAndSheet(c)
+			workbook, worksheet := getBookAndSheet(checker)
 			log.Errorf("--- FAIL: workbook %s, worksheet %s", workbook.GetName(), worksheet.GetName())
 			issues = append(issues, &Issue{
 				Kind:      IssueKindCheck,
@@ -201,15 +201,15 @@ func (h *Hub) check(breakFailedCount int) []*Issue {
 func (h *Hub) checkCompatibility(newHub *tableau.Hub, breakFailedCount int) []*Issue {
 	issues := make([]*Issue, 0, len(h.checkers))
 	for _, name := range slices.Sorted(maps.Keys(h.checkers)) {
-		c := h.checkers[name]
+		checker := h.checkers[name]
 		if h.GetMessager(name) == nil || newHub.GetMessager(name) == nil {
 			log.Infof("=== SKIP  %v", name)
 			continue
 		}
 		log.Infof("=== RUN   %v", name)
-		err := c.CheckCompatibility(h.Hub, newHub)
+		err := checker.CheckCompatibility(h.Hub, newHub)
 		if err != nil {
-			workbook, worksheet := getBookAndSheet(c)
+			workbook, worksheet := getBookAndSheet(checker)
 			log.Errorf("--- FAIL: workbook %s, worksheet %s", workbook.GetName(), worksheet.GetName())
 			issues = append(issues, &Issue{
 				Kind:      IssueKindCompatibility,
@@ -271,9 +271,8 @@ type Options struct {
 	//
 	// Default: 1.
 	BreakFailedCount int
-	// ProtoPackage is retained for API compatibility. Workbook/worksheet
-	// metadata is now resolved from each messager's protobuf descriptor, so
-	// this field is unused by the hub runtime.
+	// Deprecated: ProtoPackage is unused. Workbook/worksheet metadata is
+	// resolved from each messager's protobuf descriptor.
 	//
 	// Default: "protoconf".
 	ProtoPackage string
@@ -307,7 +306,8 @@ func BreakFailedCount(count int) Option {
 	}
 }
 
-// ProtoPackage sets ProtoPackage option.
+// Deprecated: ProtoPackage is unused. Workbook/worksheet metadata is
+// resolved from each messager's protobuf descriptor.
 func ProtoPackage(protoPackage string) Option {
 	return func(opts *Options) {
 		opts.ProtoPackage = protoPackage
