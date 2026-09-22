@@ -10,6 +10,7 @@ import (
 	"fmt"
 	"slices"
 
+	"github.com/tableauio/checker/test/customconf"
 	tableau "github.com/tableauio/checker/test/protoconf/tableau"
 )
 
@@ -18,6 +19,13 @@ type ActivityConf struct {
 }
 
 func (x *ActivityConf) Check(hub *tableau.Hub) error {
+	// When CustomItemConf is opted into the hub Filter, assert its
+	// ProcessAfterLoadAll-derived view of ItemConf is available.
+	if conf := tableau.GetMessager[*customconf.CustomItemConf](hub.GetMessagerMap()); conf != nil {
+		if conf.GetSpecialItemName() == "" {
+			return fmt.Errorf("CustomItemConf special item name empty")
+		}
+	}
 	for _, activity := range x.Data().GetActivityMap() {
 		for _, chapter := range activity.GetChapterMap() {
 			_, err := hub.GetItemConf().Get1(chapter.GetAwardId())

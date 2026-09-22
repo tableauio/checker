@@ -16,7 +16,6 @@ import (
 	"google.golang.org/protobuf/reflect/protoregistry"
 	"google.golang.org/protobuf/types/descriptorpb"
 
-	"github.com/tableauio/tableau/log"
 	"github.com/tableauio/tableau/proto/tableaupb"
 )
 
@@ -29,7 +28,9 @@ func Filter(messagerName string) bool {
 	fullName := protoreflect.FullName(protoPkg + "." + messagerName)
 	mt, err := protoregistry.GlobalTypes.FindMessageByName(fullName)
 	if err != nil {
-		log.Panicf("failed to find messager %s: %+v", fullName, err)
+		// Custom/derived messagers are not protobuf worksheet messages; exclude
+		// them from the default workbook Filter. Opt in explicitly when needed.
+		return false
 	}
 	fd := mt.Descriptor().ParentFile()
 	opts := fd.Options().(*descriptorpb.FileOptions)

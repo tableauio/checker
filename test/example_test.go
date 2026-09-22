@@ -4,6 +4,7 @@ import (
 	"fmt"
 
 	"github.com/tableauio/checker/test/check"
+	"github.com/tableauio/checker/test/customconf"
 	"github.com/tableauio/checker/test/protoconf/tableau"
 	"github.com/tableauio/tableau/format"
 	"github.com/tableauio/tableau/load"
@@ -56,4 +57,29 @@ func Example_checkCompatibility() {
 	fmt.Println(err)
 	// Output:
 	// error: workbook Test#*.csv, worksheet Activity, custom check failed: ItemConf incompatible: 5 item id(s) removed in new version: [2 3 2001 2002 2003]
+}
+
+// Example_customConf shows that a derived messager (no worksheet proto) is
+// loaded by the checker hub and populated in ProcessAfterLoadAll from
+// ItemConf. Opt the custom messager in via Filter; the default Filter skips
+// non-protobuf messagers. ActivityConf.Check also reads CustomItemConf when
+// it is present on the hub.
+func Example_customConf() {
+	allowed := map[string]bool{"ItemConf": true, "CustomItemConf": true}
+	hub := check.NewHub(tableau.Filter(func(name string) bool {
+		return allowed[name]
+	}))
+	err := hub.Check(
+		"./testdata/", format.JSON,
+		check.WithLoadOptions(load.IgnoreUnknownFields()),
+	)
+	if err != nil {
+		fmt.Println(err)
+		return
+	}
+	conf := tableau.GetMessager[*customconf.CustomItemConf](hub.GetMessagerMap())
+	fmt.Println(conf.GetSpecialItemName())
+	// Output:
+	// custom item conf processed
+	// coin1
 }
