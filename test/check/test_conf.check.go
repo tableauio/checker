@@ -19,12 +19,14 @@ type ActivityConf struct {
 }
 
 func (x *ActivityConf) Check(hub *tableau.Hub) error {
-	// When CustomItemConf is opted into the hub Filter, assert its
+	// CustomItemConf is registered by importing test/customconf; assert its
 	// ProcessAfterLoadAll-derived view of ItemConf is available.
-	if conf := tableau.GetMessager[*customconf.CustomItemConf](hub.GetMessagerMap()); conf != nil {
-		if conf.GetSpecialItemName() == "" {
-			return fmt.Errorf("CustomItemConf special item name empty")
-		}
+	conf := tableau.GetMessager[*customconf.CustomItemConf](hub.GetMessagerMap())
+	if conf == nil {
+		return fmt.Errorf("CustomItemConf not found")
+	}
+	if conf.GetSpecialItemName() == "" {
+		return fmt.Errorf("CustomItemConf special item name empty")
 	}
 	for _, activity := range x.Data().GetActivityMap() {
 		for _, chapter := range activity.GetChapterMap() {

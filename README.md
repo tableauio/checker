@@ -62,23 +62,23 @@ During local development against this repo (or before a release tag exists), poi
 
 Common options:
 
-| Option | Default | Meaning |
-|--------|---------|---------|
-| `pkg` | `check` | Go package name of generated checker files |
-| `loader-pkg` | `tableau` | Loader package name under each file’s Go import path |
-| `out` | _(empty)_ | Existing checker output dir used for incremental updates |
+| Option       | Default   | Meaning                                                  |
+| ------------ | --------- | -------------------------------------------------------- |
+| `pkg`        | `check`   | Go package name of generated checker files               |
+| `loader-pkg` | `tableau` | Loader package name under each file’s Go import path     |
+| `out`        | _(empty)_ | Existing checker output dir used for incremental updates |
 
 ## Layout
 
-| Path | Role |
-|------|------|
-| `cmd/protoc-gen-go-tableau-checker/` | Plugin source + embedded `hub` / `error` templates |
-| `test/proto/` | Sample Tableau workbooks (`.proto`) |
-| `test/protoconf/` | Generated `*.pb.go` + loader `*.pc.go` |
-| `test/check/` | Generated / hand-edited `*.check.go` hub and checkers |
-| `test/customconf/` | Example derived messager (`CustomItemConf`) |
-| `test/testdata*/` | JSON / CSV fixtures for load & compatibility examples |
-| `test/example_test.go` | Runnable `Example_*` demos |
+| Path                                 | Role                                                     |
+| ------------------------------------ | -------------------------------------------------------- |
+| `cmd/protoc-gen-go-tableau-checker/` | Plugin source + embedded `hub` / `error` templates       |
+| `test/proto/`                        | Sample Tableau workbooks (`.proto`)                      |
+| `test/protoconf/`                    | Generated `*.pb.go` + loader `*.pc.go`                   |
+| `test/check/`                        | Generated / hand-edited `*.check.go` hub and checkers    |
+| `test/customconf/`                   | Example derived messager (`CustomItemConf`)              |
+| `test/testdata*/`                    | JSON / CSV fixtures for load & compatibility examples    |
+| `test/example_test.go`               | Runnable `Example_*` demos                               |
 
 ## Lint
 

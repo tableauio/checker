@@ -11,36 +11,11 @@ import (
 	"github.com/tableauio/checker/test/protoconf/tableau"
 	"github.com/tableauio/tableau/format"
 	"github.com/tableauio/tableau/load"
-	"google.golang.org/protobuf/proto"
-	"google.golang.org/protobuf/reflect/protoreflect"
-	"google.golang.org/protobuf/reflect/protoregistry"
-	"google.golang.org/protobuf/types/descriptorpb"
-
-	"github.com/tableauio/tableau/proto/tableaupb"
 )
-
-var (
-	protoPkg   = "protoconf"
-	pathPrefix = ""
-)
-
-func Filter(messagerName string) bool {
-	fullName := protoreflect.FullName(protoPkg + "." + messagerName)
-	mt, err := protoregistry.GlobalTypes.FindMessageByName(fullName)
-	if err != nil {
-		// Custom/derived messagers are not protobuf worksheet messages; exclude
-		// them from the default workbook Filter. Opt in explicitly when needed.
-		return false
-	}
-	fd := mt.Descriptor().ParentFile()
-	opts := fd.Options().(*descriptorpb.FileOptions)
-	workbook := proto.GetExtension(opts, tableaupb.E_Workbook).(*tableaupb.WorkbookOptions)
-	return strings.HasPrefix(workbook.Name, pathPrefix)
-}
 
 func TestLoad(t *testing.T) {
 	run := func(ef check.ErrorFormat) error {
-		return check.NewHub(tableau.Filter(Filter)).Check("./non-existent-dir/", format.JSON,
+		return check.NewHub().Check("./non-existent-dir/", format.JSON,
 			check.BreakFailedCount(10),
 			check.WithErrorFormat(ef),
 			check.WithLoadOptions(load.IgnoreUnknownFields()),
@@ -94,7 +69,7 @@ func TestLoad(t *testing.T) {
 
 func TestCheck(t *testing.T) {
 	run := func(ef check.ErrorFormat) error {
-		return check.NewHub(tableau.Filter(Filter)).Check("./testdata/", format.JSON,
+		return check.NewHub().Check("./testdata/", format.JSON,
 			check.BreakFailedCount(1),
 			check.WithErrorFormat(ef),
 			check.WithLoadOptions(load.IgnoreUnknownFields()),
@@ -149,7 +124,7 @@ func TestCheck(t *testing.T) {
 
 func TestCheckCompatibility(t *testing.T) {
 	run := func(ef check.ErrorFormat) error {
-		return check.NewHub(tableau.Filter(Filter)).CheckCompatibility("./testdata/", "./testdata1/", format.JSON,
+		return check.NewHub().CheckCompatibility("./testdata/", "./testdata1/", format.JSON,
 			check.SkipLoadErrors(),
 			check.BreakFailedCount(10),
 			check.WithErrorFormat(ef),
