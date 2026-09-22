@@ -27,10 +27,12 @@ type Issue struct {
 
 // String returns the issue as a human-readable string.
 func (i *Issue) String() string {
-	return fmt.Sprintf("error: workbook %s, worksheet %s, %s",
-		i.Workbook.GetName(),
-		i.Worksheet.GetName(),
-		i.Message)
+	book := i.Workbook.GetName()
+	sheet := i.Worksheet.GetName()
+	if book == "" && sheet == "" {
+		return fmt.Sprintf("error: %s", i.Message)
+	}
+	return fmt.Sprintf("error: workbook %s, worksheet %s, %s", book, sheet, i.Message)
 }
 
 // MarshalJSON uses protojson for Workbook/Worksheet fields to emit correct proto field names.
