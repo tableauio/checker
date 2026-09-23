@@ -8,7 +8,7 @@ import (
 	"google.golang.org/protobuf/types/pluginpb"
 )
 
-const version = "0.7.0"
+const version = "0.7.1"
 
 type Params struct {
 	pkg       string
@@ -35,7 +35,9 @@ func main() {
 			if !NeedGenFile(f) {
 				continue
 			}
-			generateMessager(gen, f)
+			if err := generateMessager(gen, f); err != nil {
+				return err
+			}
 		}
 		if err := generateError(gen); err != nil {
 			return err

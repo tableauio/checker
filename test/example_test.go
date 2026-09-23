@@ -4,6 +4,7 @@ import (
 	"fmt"
 
 	"github.com/tableauio/checker/test/check"
+	"github.com/tableauio/checker/test/customconf"
 	"github.com/tableauio/checker/test/protoconf/tableau"
 	"github.com/tableauio/tableau/format"
 	"github.com/tableauio/tableau/load"
@@ -15,8 +16,10 @@ import (
 //
 // BreakFailedCount(1) caps the run at the first issue so the example output
 // stays stable regardless of how many other issues exist in the data set.
+// CustomItemConf is registered via test/customconf and participates in load /
+// ProcessAfterLoadAll (hence the "custom item conf processed" line).
 func Example_check() {
-	err := check.NewHub(tableau.Filter(Filter)).Check(
+	err := check.NewHub().Check(
 		"./testdata/", format.JSON,
 		check.BreakFailedCount(1),
 		check.WithLoadOptions(load.IgnoreUnknownFields()),
@@ -25,6 +28,7 @@ func Example_check() {
 		fmt.Println(err)
 	}
 	// Output:
+	// custom item conf processed
 	// error: workbook Test#*.csv, worksheet Activity, custom check failed: awardId: 0 not found
 }
 
@@ -42,9 +46,9 @@ func Example_check() {
 // that existed in the old snapshot but disappears in the new one.
 func Example_checkCompatibility() {
 	allowed := map[string]bool{"ItemConf": true, "ActivityConf": true}
-	filter := func(name string) bool { return allowed[name] && Filter(name) }
-
-	err := check.NewHub(tableau.Filter(filter)).CheckCompatibility(
+	err := check.NewHub(tableau.Filter(func(name string) bool {
+		return allowed[name]
+	})).CheckCompatibility(
 		"./testdata/", "./testdata1/", format.JSON,
 		check.BreakFailedCount(10),
 		check.WithLoadOptions(load.IgnoreUnknownFields()),
@@ -56,4 +60,21 @@ func Example_checkCompatibility() {
 	fmt.Println(err)
 	// Output:
 	// error: workbook Test#*.csv, worksheet Activity, custom check failed: ItemConf incompatible: 5 item id(s) removed in new version: [2 3 2001 2002 2003]
+}
+
+// Example_customConf shows reading a derived messager after Check. The hub
+// loads all registered messagers (including CustomItemConf); Check may still
+// fail on ActivityConf, but ProcessAfterLoadAll has already built the index.
+func Example_customConf() {
+	hub := check.NewHub()
+	_ = hub.Check(
+		"./testdata/", format.JSON,
+		check.BreakFailedCount(1),
+		check.WithLoadOptions(load.IgnoreUnknownFields()),
+	)
+	conf := tableau.GetMessager[*customconf.CustomItemConf](hub.GetMessagerMap())
+	fmt.Println(conf.GetSpecialItemName())
+	// Output:
+	// custom item conf processed
+	// coin1
 }

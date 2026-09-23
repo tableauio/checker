@@ -1,6 +1,7 @@
 package main
 
 import (
+	"fmt"
 	"go/parser"
 	"go/token"
 	"os"
@@ -12,12 +13,29 @@ import (
 	"google.golang.org/protobuf/types/descriptorpb"
 )
 
-var loaderImportPath protogen.GoImportPath
+var (
+	loaderImportPath    protogen.GoImportPath
+	loaderImportPathSet bool
+)
 
-// generateMessager generates a protoconf file correponsing to the protobuf file.
+// setLoaderImportPath records the loader import path used by generated hub code.
+// All workbook files in one generation must share the same loader import path.
+func setLoaderImportPath(path protogen.GoImportPath) error {
+	if loaderImportPathSet && loaderImportPath != path {
+		return fmt.Errorf("inconsistent loader import path: got %q, want %q", path, loaderImportPath)
+	}
+	loaderImportPath = path
+	loaderImportPathSet = true
+	return nil
+}
+
+// generateMessager generates a protoconf file corresponding to the protobuf file.
 // Each wrapped struct type implement the Messager interface.
-func generateMessager(gen *protogen.Plugin, file *protogen.File) {
-	loaderImportPath = protogen.GoImportPath(string(file.GoImportPath) + "/" + params.loaderPkg)
+func generateMessager(gen *protogen.Plugin, file *protogen.File) error {
+	path := protogen.GoImportPath(string(file.GoImportPath) + "/" + params.loaderPkg)
+	if err := setLoaderImportPath(path); err != nil {
+		return err
+	}
 	// parse file messagers
 	var fileMessagers []string
 	for _, message := range file.Messages {
@@ -30,39 +48,46 @@ func generateMessager(gen *protogen.Plugin, file *protogen.File) {
 	}
 	// generate file
 	filename := filepath.Join(file.GeneratedFilenamePrefix + "." + checkExt + ".go")
-	path := filepath.Join(params.outdir, filename)
-	exists, err := Exists(path)
+	outPath := filepath.Join(params.outdir, filename)
+	exists, err := Exists(outPath)
 	if err != nil {
-		panic(err)
+		return fmt.Errorf("stat checker file %s: %w", outPath, err)
 	}
 	g := gen.NewGeneratedFile(filename, "")
 	generateFileHeader(gen, file, g, false)
 	g.P()
 	if exists {
-		addIncrementalFileContent(g, fileMessagers, path)
+		if err := addIncrementalFileContent(g, fileMessagers, outPath); err != nil {
+			return err
+		}
 	} else {
 		g.P("package ", params.pkg)
 		g.P("import (")
-		g.P("tableau ", loaderImportPath)
+		g.P("tableau ", path)
 		g.P(")")
 		g.P()
 		generateFileContent(g, fileMessagers)
 	}
 	generateRegister(g, fileMessagers)
+	return nil
 }
 
-func addIncrementalFileContent(g *protogen.GeneratedFile, messagers []string, path string) {
+func addIncrementalFileContent(g *protogen.GeneratedFile, messagers []string, path string) error {
 	content, err := os.ReadFile(path)
 	if err != nil {
-		panic(err)
+		return fmt.Errorf("read existing checker file %s: %w", path, err)
 	}
 	fset := token.NewFileSet()
-	ast, err := parser.ParseFile(fset, path, content, parser.ParseComments)
+	fileAST, err := parser.ParseFile(fset, path, content, parser.ParseComments)
 	if err != nil {
-		panic(err)
+		return fmt.Errorf("parse existing checker file %s: %w", path, err)
 	}
-	astMap := parseAST(ast)
-	g.P(removeInitFuncAndTrailingNotes(ast, fset))
+	astMap := parseAST(fileAST)
+	body, err := removeInitFuncAndTrailingNotes(fileAST, fset)
+	if err != nil {
+		return fmt.Errorf("format existing checker file %s: %w", path, err)
+	}
+	g.P(body)
 	for _, messager := range messagers {
 		if _, ok := astMap[ASTKey{
 			TypeName: messager,
@@ -84,6 +109,7 @@ func addIncrementalFileContent(g *protogen.GeneratedFile, messagers []string, pa
 			generateCheckCompatibility(g, messager)
 		}
 	}
+	return nil
 }
 
 // generateFileContent generates struct type definitions.

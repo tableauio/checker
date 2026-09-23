@@ -59,7 +59,7 @@ func parseAST(file *ast.File) map[ASTKey]bool {
 	return astMap
 }
 
-func removeInitFuncAndTrailingNotes(file *ast.File, fset *token.FileSet) string {
+func removeInitFuncAndTrailingNotes(file *ast.File, fset *token.FileSet) (string, error) {
 	type rangeToRemove struct {
 		start token.Pos
 		end   token.Pos
@@ -89,9 +89,8 @@ func removeInitFuncAndTrailingNotes(file *ast.File, fset *token.FileSet) string 
 		})
 	})
 	buf := new(bytes.Buffer)
-	err := format.Node(buf, fset, file)
-	if err != nil {
-		panic(err)
+	if err := format.Node(buf, fset, file); err != nil {
+		return "", err
 	}
-	return buf.String()
+	return buf.String(), nil
 }
