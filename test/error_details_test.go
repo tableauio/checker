@@ -17,8 +17,7 @@ import (
 )
 
 // Exercise the real merger load path: a valid primary workbook and two
-// shards, each with two invalid cells. A public rewrite option points the
-// existing ThemeConf schema at Excel inputs without mutating its descriptor.
+// CSV shards, each with two invalid cells.
 func TestLoadShardErrorDetails(t *testing.T) {
 	for _, lang := range []string{"en", "zh"} {
 		for _, limit := range []int{1, 5} {
@@ -27,9 +26,8 @@ func TestLoadShardErrorDetails(t *testing.T) {
 				t.Cleanup(func() { require.NoError(t, tableauapi.SetLang("en")) })
 				err := check.NewHub(tableau.Filter(func(name string) bool {
 					return name == "ThemeConf"
-				})).Check("./testdata4/", format.Excel,
-					check.WithLoadOptions(load.MaxErrorsPerSheet(limit),
-						load.SubdirRewrites(map[string]string{"Test#*.csv": "Test.xlsx"})),
+				})).Check("./testdata4/", format.CSV,
+					check.WithLoadOptions(load.MaxErrorsPerSheet(limit)),
 				)
 				require.Error(t, err)
 				var checkErr *check.Error
@@ -55,7 +53,7 @@ func TestLoadShardErrorDetails(t *testing.T) {
 					require.NotNil(t, detail.Source)
 					require.NotNil(t, detail.Source.Cell)
 					book := detail.Source.Workbook
-					assert.Contains(t, []string{"Merge1.xlsx", "Merge2.xlsx"}, book)
+					assert.Contains(t, []string{"Merge1#*.csv", "Merge2#*.csv"}, book)
 					assert.Equal(t, "Test#*.csv", detail.Source.PrimaryWorkbook)
 					assert.Equal(t, "ThemeConf", detail.Source.Worksheet)
 					assert.Equal(t, "ThemeConf", detail.Source.PrimaryWorksheet)
