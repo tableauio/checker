@@ -11,7 +11,6 @@ import (
 	"github.com/tableauio/checker/test/check"
 	"github.com/tableauio/checker/test/protoconf/tableau"
 	tableauapi "github.com/tableauio/tableau"
-	"github.com/tableauio/tableau/diagnostic"
 	"github.com/tableauio/tableau/format"
 	"github.com/tableauio/tableau/load"
 	"google.golang.org/protobuf/proto"
@@ -20,7 +19,7 @@ import (
 // Exercise the real merger load path: a valid primary workbook and two
 // shards, each with two invalid cells. A public rewrite option points the
 // existing ThemeConf schema at Excel inputs without mutating its descriptor.
-func TestLoadShardDiagnostics(t *testing.T) {
+func TestLoadShardErrorDetails(t *testing.T) {
 	for _, lang := range []string{"en", "zh"} {
 		for _, limit := range []int{1, 5} {
 			t.Run(fmt.Sprintf("%s/limit%d", lang, limit), func(t *testing.T) {
@@ -37,32 +36,35 @@ func TestLoadShardDiagnostics(t *testing.T) {
 				require.ErrorAs(t, err, &checkErr)
 				require.Len(t, checkErr.Issues, 1)
 				issue := checkErr.Issues[0]
-				require.NotNil(t, issue.Diagnostic)
+				require.NotNil(t, issue.Details)
 				assert.Equal(t, "Test#*.csv", issue.Workbook.GetName())
 				assert.Equal(t, "ThemeConf", issue.Worksheet.GetName())
 				assert.NotContains(t, err.Error(), "--- debugging ---")
 				assert.NotContains(t, err.Error(), "goroutine")
-
-				leaves := issue.Diagnostic.Children()
+				var native *tableauapi.Error
+				require.ErrorAs(t, err, &native)
+				assert.Equal(t, native.Details, issue.Details)
+				leaves := issue.Details
 				if limit == 1 {
-					require.Empty(t, leaves)
-					leaves = []*diagnostic.Desc{issue.Diagnostic}
+					require.Len(t, leaves, 1)
 				} else {
 					require.Len(t, leaves, 4)
 				}
 				seen := make(map[string]bool)
 				for _, leaf := range leaves {
-					book := leaf.GetValue("BookName")
+					require.NotNil(t, leaf.Source)
+					require.NotNil(t, leaf.Source.Cell)
+					book := leaf.Source.Workbook
 					assert.Contains(t, []string{"Merge1.xlsx", "Merge2.xlsx"}, book)
-					assert.Equal(t, "Test#*.csv", leaf.GetValue("PrimaryBookName"))
-					assert.Equal(t, "ThemeConf", leaf.GetValue("SheetName"))
-					assert.Equal(t, "ThemeConf", leaf.GetValue("PrimarySheetName"))
-					assert.Contains(t, []string{"B4", "B5"}, leaf.GetValue("DataCellPos"))
-					assert.Contains(t, []string{"bad-first", "bad-second"}, leaf.GetValue("DataCell"))
-					assert.Equal(t, "E2012", leaf.GetValue("ErrCode"))
-					assert.Equal(t, "confgen", leaf.GetValue("Module"))
-					assert.Contains(t, issue.Message, leaf.String())
-					seen[fmt.Sprintf("%s/%s", book, leaf.GetValue("DataCellPos"))] = true
+					assert.Equal(t, "Test#*.csv", leaf.Source.PrimaryWorkbook)
+					assert.Equal(t, "ThemeConf", leaf.Source.Worksheet)
+					assert.Equal(t, "ThemeConf", leaf.Source.PrimaryWorksheet)
+					assert.Contains(t, []string{"B4", "B5"}, leaf.Source.Cell.Position)
+					assert.Contains(t, []string{"bad-first", "bad-second"}, leaf.Source.Cell.Data)
+					assert.Equal(t, "E2012", leaf.Code)
+					assert.Equal(t, "confgen", leaf.Module)
+					assert.Contains(t, issue.Message, leaf.Message)
+					seen[fmt.Sprintf("%s/%s", book, leaf.Source.Cell.Position)] = true
 				}
 				if limit > 1 {
 					assert.Len(t, seen, 4, "each source cell must retain its own diagnostic")
@@ -77,23 +79,22 @@ func TestLoadShardDiagnostics(t *testing.T) {
 					assert.Contains(t, issue.Message, "DataCellPos: B4")
 				}
 
-				// JSON carries the same descriptor, with separate children rather
-				// than a synthetic location assembled from unrelated errors.
+				// JSON carries typed details for each source error.
 				var encoded struct {
 					Issues []struct {
-						Diagnostic json.RawMessage `json:"diagnostic"`
+						Details json.RawMessage `json:"details"`
 					} `json:"issues"`
 				}
 				text := check.ErrorFormatJSON(checkErr)
 				require.NoError(t, json.Unmarshal([]byte(text), &encoded))
 				require.Len(t, encoded.Issues, 1)
-				want, marshalErr := json.Marshal(issue.Diagnostic)
+				want, marshalErr := json.Marshal(issue.Details)
 				require.NoError(t, marshalErr)
-				assert.JSONEq(t, string(want), string(encoded.Issues[0].Diagnostic))
+				assert.JSONEq(t, string(want), string(encoded.Issues[0].Details))
 				assert.NotContains(t, text, "\n")
 
 				// Retain the original concrete error through the checker wrapper.
-				var cause interface{ Fields() map[string]any }
+				var cause *tableauapi.Error
 				require.True(t, errors.As(err, &cause))
 				assert.True(t, errors.Is(err, checkErr.Unwrap()[0]))
 			})
@@ -114,6 +115,6 @@ func TestLoadPreservesCause(t *testing.T) {
 	var checkErr *check.Error
 	require.ErrorAs(t, err, &checkErr)
 	require.Len(t, checkErr.Issues, 1)
-	assert.Nil(t, checkErr.Issues[0].Diagnostic)
+	assert.Nil(t, checkErr.Issues[0].Details)
 	assert.Equal(t, "load failed: load config: custom loader unavailable", checkErr.Issues[0].Message)
 }

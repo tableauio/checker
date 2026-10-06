@@ -8,12 +8,13 @@ package check
 import (
 	tableau "github.com/tableauio/checker/test/protoconf/tableau"
 
+	"errors"
 	"fmt"
 	"maps"
 	"slices"
 	"sync"
 
-	"github.com/tableauio/tableau/diagnostic"
+	tableauapi "github.com/tableauio/tableau"
 	"github.com/tableauio/tableau/format"
 	"github.com/tableauio/tableau/load"
 	"github.com/tableauio/tableau/log"
@@ -144,23 +145,21 @@ func (h *Hub) load(loadType, dir string, f format.Format, options ...load.Option
 	return checkers, issues
 }
 
-// newIssue uses the same structured description and localized rendering as
-// tableauc. Keep each joined error's context intact rather than merging fields
-// from different workbooks or cells into a single source location.
+// newIssue consumes Tableau's public typed error without interpreting its
+// internal descriptor, wrappers, or formatting fields.
 func newIssue(kind IssueKind, prefix string, msger tableau.Messager, err error) *Issue {
 	workbook, worksheet := getBookAndSheet(msger)
-	desc := diagnostic.NewDesc(err)
+	err = tableauapi.WrapError(err)
 	issue := &Issue{
 		Kind:      kind,
-		Message:   fmt.Sprintf("%s: %s", prefix, desc.String()),
+		Message:   fmt.Sprintf("%s: %s", prefix, err),
 		Workbook:  workbook,
 		Worksheet: worksheet,
 		cause:     err,
 	}
-	// Ordinary Go errors have no structured diagnostic fields. Preserve their
-	// existing JSON representation while retaining the underlying cause.
-	if len(desc.Fields()) > 0 || len(desc.Children()) > 0 {
-		issue.Diagnostic = desc
+	var tableauErr *tableauapi.Error
+	if errors.As(err, &tableauErr) {
+		issue.Details = tableauErr.Details
 	}
 	return issue
 }

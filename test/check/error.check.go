@@ -10,7 +10,7 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/tableauio/tableau/diagnostic"
+	tableauapi "github.com/tableauio/tableau"
 	"github.com/tableauio/tableau/log"
 	"github.com/tableauio/tableau/proto/tableaupb"
 	"google.golang.org/protobuf/encoding/protojson"
@@ -32,11 +32,10 @@ type Issue struct {
 	Workbook  *tableaupb.WorkbookOptions  `json:"workbook,omitempty"`
 	Worksheet *tableaupb.WorksheetOptions `json:"worksheet,omitempty"`
 
-	// Diagnostic preserves tableau's structured fields and individual errors
-	// when multiple source cells fail. Workbook/Worksheet describe the schema;
-	// Diagnostic describes the actual input, including shard workbooks.
-	Diagnostic *diagnostic.Desc `json:"diagnostic,omitempty"`
-	cause      error
+	// Details contains Tableau's typed error details. Workbook/Worksheet
+	// describe the schema; each detail identifies its actual source.
+	Details []*tableauapi.ErrorDetail `json:"details,omitempty"`
+	cause   error
 }
 
 // String returns the issue as a human-readable string.
@@ -51,15 +50,15 @@ func (i *Issue) String() string {
 func (i *Issue) MarshalJSON() ([]byte, error) {
 	marshaler := protojson.MarshalOptions{}
 	out := struct {
-		Kind       IssueKind        `json:"kind"`
-		Message    string           `json:"message"`
-		Workbook   json.RawMessage  `json:"workbook,omitempty"`
-		Worksheet  json.RawMessage  `json:"worksheet,omitempty"`
-		Diagnostic *diagnostic.Desc `json:"diagnostic,omitempty"`
+		Kind      IssueKind                 `json:"kind"`
+		Message   string                    `json:"message"`
+		Workbook  json.RawMessage           `json:"workbook,omitempty"`
+		Worksheet json.RawMessage           `json:"worksheet,omitempty"`
+		Details   []*tableauapi.ErrorDetail `json:"details,omitempty"`
 	}{
-		Kind:       i.Kind,
-		Message:    i.Message,
-		Diagnostic: i.Diagnostic,
+		Kind:    i.Kind,
+		Message: i.Message,
+		Details: i.Details,
 	}
 	if i.Workbook != nil {
 		b, err := marshaler.Marshal(i.Workbook)
