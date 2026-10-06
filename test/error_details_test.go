@@ -44,30 +44,30 @@ func TestLoadShardErrorDetails(t *testing.T) {
 				var native *tableauapi.Error
 				require.ErrorAs(t, err, &native)
 				assert.Equal(t, native.Details, issue.Details)
-				leaves := issue.Details
+				details := issue.Details
 				if limit == 1 {
-					require.Len(t, leaves, 1)
+					require.Len(t, details, 1)
 				} else {
-					require.Len(t, leaves, 4)
+					require.Len(t, details, 4)
 				}
 				seen := make(map[string]bool)
-				for _, leaf := range leaves {
-					require.NotNil(t, leaf.Source)
-					require.NotNil(t, leaf.Source.Cell)
-					book := leaf.Source.Workbook
+				for _, detail := range details {
+					require.NotNil(t, detail.Source)
+					require.NotNil(t, detail.Source.Cell)
+					book := detail.Source.Workbook
 					assert.Contains(t, []string{"Merge1.xlsx", "Merge2.xlsx"}, book)
-					assert.Equal(t, "Test#*.csv", leaf.Source.PrimaryWorkbook)
-					assert.Equal(t, "ThemeConf", leaf.Source.Worksheet)
-					assert.Equal(t, "ThemeConf", leaf.Source.PrimaryWorksheet)
-					assert.Contains(t, []string{"B4", "B5"}, leaf.Source.Cell.Position)
-					assert.Contains(t, []string{"bad-first", "bad-second"}, leaf.Source.Cell.Data)
-					assert.Equal(t, "E2012", leaf.Code)
-					assert.Equal(t, "confgen", leaf.Module)
-					assert.Contains(t, issue.Message, leaf.Message)
-					seen[fmt.Sprintf("%s/%s", book, leaf.Source.Cell.Position)] = true
+					assert.Equal(t, "Test#*.csv", detail.Source.PrimaryWorkbook)
+					assert.Equal(t, "ThemeConf", detail.Source.Worksheet)
+					assert.Equal(t, "ThemeConf", detail.Source.PrimaryWorksheet)
+					assert.Contains(t, []string{"B4", "B5"}, detail.Source.Cell.Position)
+					assert.Contains(t, []string{"bad-first", "bad-second"}, detail.Source.Cell.Data)
+					assert.Equal(t, "E2012", detail.Code)
+					assert.Equal(t, "confgen", detail.Module)
+					assert.Contains(t, issue.Message, detail.Message)
+					seen[fmt.Sprintf("%s/%s", book, detail.Source.Cell.Position)] = true
 				}
 				if limit > 1 {
-					assert.Len(t, seen, 4, "each source cell must retain its own diagnostic")
+					assert.Len(t, seen, 4, "each source cell must retain its own error detail")
 				}
 				if lang == "zh" {
 					assert.Contains(t, issue.Message, "(主工作簿: Test#*.csv)")

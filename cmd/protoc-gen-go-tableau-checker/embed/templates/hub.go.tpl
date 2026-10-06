@@ -139,8 +139,7 @@ func (h *Hub) load(loadType, dir string, f format.Format, options ...load.Option
 	return checkers, issues
 }
 
-// newIssue consumes Tableau's public typed error without interpreting its
-// internal descriptor, wrappers, or formatting fields.
+// newIssue retains native structured details and the original error cause.
 func newIssue(kind IssueKind, prefix string, msger tableau.Messager, err error) *Issue {
 	workbook, worksheet := getBookAndSheet(msger)
 	issue := &Issue{
