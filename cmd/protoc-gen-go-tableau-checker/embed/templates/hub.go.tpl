@@ -7,6 +7,7 @@ import (
 	"slices"
 	"sync"
 
+	"github.com/tableauio/tableau/diagnostic"
 	"github.com/tableauio/tableau/format"
 	"github.com/tableauio/tableau/load"
 	"github.com/tableauio/tableau/log"
@@ -97,16 +98,10 @@ func (h *Hub) load(loadType, dir string, f format.Format, options ...load.Option
 			log.Infof("=== LOAD  %v%v", name, loadType)
 			mopts := opts.ParseMessagerOptionsByName(name)
 			if err := msger.Load(dir, f, mopts); err != nil {
-				workbook, worksheet := getBookAndSheet(msger)
 				log.Infof("--- FAIL: %v%v", name, loadType)
 				results <- loadResult{
 					name: name,
-					issue: &Issue{
-						Kind:      IssueKindLoad,
-						Message:   fmt.Sprintf("load failed: %s", err.Error()),
-						Workbook:  workbook,
-						Worksheet: worksheet,
-					},
+					issue: newIssue(IssueKindLoad, "load failed", msger, err),
 				}
 				return
 			}
@@ -135,18 +130,33 @@ func (h *Hub) load(loadType, dir string, f format.Format, options ...load.Option
 		for _, name := range slices.Sorted(maps.Keys(msgers)) {
 			msger := msgers[name]
 			if err := msger.ProcessAfterLoadAll(h.Hub); err != nil {
-				workbook, worksheet := getBookAndSheet(msger)
-				issues = append(issues, &Issue{
-					Kind:      IssueKindLoad,
-					Message:   fmt.Sprintf("process after load all failed: %s", err.Error()),
-					Workbook:  workbook,
-					Worksheet: worksheet,
-				})
+				issues = append(issues, newIssue(IssueKindLoad, "process after load all failed", msger, err))
 				log.Infof("--- FAIL: %v%v ProcessAfterLoadAll", name, loadType)
 			}
 		}
 	}
 	return checkers, issues
+}
+
+// newIssue uses the same structured description and localized rendering as
+// tableauc. Keep each joined error's context intact rather than merging fields
+// from different workbooks or cells into a single source location.
+func newIssue(kind IssueKind, prefix string, msger tableau.Messager, err error) *Issue {
+	workbook, worksheet := getBookAndSheet(msger)
+	desc := diagnostic.NewDesc(err)
+	issue := &Issue{
+		Kind:      kind,
+		Message:   fmt.Sprintf("%s: %s", prefix, desc.String()),
+		Workbook:  workbook,
+		Worksheet: worksheet,
+		cause:     err,
+	}
+	// Ordinary Go errors have no structured diagnostic fields. Preserve their
+	// existing JSON representation while retaining the underlying cause.
+	if len(desc.Fields()) > 0 || len(desc.Children()) > 0 {
+		issue.Diagnostic = desc
+	}
+	return issue
 }
 
 // getBookAndSheet resolves workbook/worksheet options from a messager's
@@ -174,14 +184,9 @@ func (h *Hub) check(breakFailedCount int) []*Issue {
 		log.Infof("=== RUN   %v", name)
 		err := checker.Check(h.Hub)
 		if err != nil {
-			workbook, worksheet := getBookAndSheet(checker)
-			log.Errorf("--- FAIL: workbook %s, worksheet %s", workbook.GetName(), worksheet.GetName())
-			issues = append(issues, &Issue{
-				Kind:      IssueKindCheck,
-				Message:   fmt.Sprintf("custom check failed: %+v", err),
-				Workbook:  workbook,
-				Worksheet: worksheet,
-			})
+			issue := newIssue(IssueKindCheck, "custom check failed", checker, err)
+			log.Errorf("--- FAIL: workbook %s, worksheet %s", issue.Workbook.GetName(), issue.Worksheet.GetName())
+			issues = append(issues, issue)
 		} else {
 			log.Infof("--- PASS: %v", name)
 		}
@@ -203,14 +208,9 @@ func (h *Hub) checkCompatibility(newHub *tableau.Hub, breakFailedCount int) []*I
 		log.Infof("=== RUN   %v", name)
 		err := checker.CheckCompatibility(h.Hub, newHub)
 		if err != nil {
-			workbook, worksheet := getBookAndSheet(checker)
-			log.Errorf("--- FAIL: workbook %s, worksheet %s", workbook.GetName(), worksheet.GetName())
-			issues = append(issues, &Issue{
-				Kind:      IssueKindCompatibility,
-				Message:   fmt.Sprintf("custom check failed: %+v", err),
-				Workbook:  workbook,
-				Worksheet: worksheet,
-			})
+			issue := newIssue(IssueKindCompatibility, "custom check failed", checker, err)
+			log.Errorf("--- FAIL: workbook %s, worksheet %s", issue.Workbook.GetName(), issue.Worksheet.GetName())
+			issues = append(issues, issue)
 		} else {
 			log.Infof("--- PASS: %v", name)
 		}

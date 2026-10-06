@@ -20,6 +20,18 @@ It has no `main` package, so `cd test && go run .` does **not** work.
 
 From the repo root:
 
+The diagnostic integration uses `github.com/tableauio/tableau/diagnostic` from
+the Tableau revision pinned in `go.mod` ([companion PR](https://github.com/tableauio/tableau/pull/463)).
+Standalone builds use that dependency directly. To develop both repositories
+together, optionally use the sibling Tableau checkout:
+
+```bash
+go work init . ../tableau
+```
+
+The workspace files are local and ignored by Git. After the companion PR is
+merged, update the dependency to the merged revision or its next release.
+
 ```bash
 # 1) Regenerate *.pb.go, loader *.pc.go, and *.check.go under test/
 cd test && buf generate && cd ..
@@ -67,6 +79,20 @@ Common options:
 | `pkg`        | `check`   | Go package name of generated checker files               |
 | `loader-pkg` | `tableau` | Loader package name under each file’s Go import path     |
 | `out`        | _(empty)_ | Existing checker output dir used for incremental updates |
+
+## Error diagnostics
+
+Generated issues retain the workbook and worksheet options from the protobuf
+schema. Source errors also expose `Issue.Diagnostic`, using Tableau's shared
+structured description. Text output uses the same localized renderer as
+`tableauc`, including the actual workbook, its primary workbook, worksheet,
+cell position, cell data, error code, reason, and help where available.
+
+JSON includes the description under `diagnostic`: single errors have `fields`,
+while aggregates have `children` with separate fields for each source error.
+This keeps multiple shard workbooks and cell positions distinct. Plain Go
+errors retain their existing output. The returned `*Error` also preserves its
+original causes for `errors.Is` and `errors.As`.
 
 ## Layout
 

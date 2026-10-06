@@ -20,3 +20,7 @@ third_party/_submodules
 test/test
 cmd/protoc-gen-go-tableau-checker/protoc-gen-go-tableau-checker
 _logs
+
+# Local workspaces for developing coordinated module changes
+go.work
+go.work.sum

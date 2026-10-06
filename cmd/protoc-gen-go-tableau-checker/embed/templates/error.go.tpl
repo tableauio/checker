@@ -3,6 +3,7 @@
 	"fmt"
 	"strings"
 
+	"github.com/tableauio/tableau/diagnostic"
 	"github.com/tableauio/tableau/log"
 	"github.com/tableauio/tableau/proto/tableaupb"
 	"google.golang.org/protobuf/encoding/protojson"
@@ -23,6 +24,12 @@ type Issue struct {
 	Message   string                      `json:"message"`
 	Workbook  *tableaupb.WorkbookOptions  `json:"workbook,omitempty"`
 	Worksheet *tableaupb.WorksheetOptions `json:"worksheet,omitempty"`
+
+	// Diagnostic preserves tableau's structured fields and individual errors
+	// when multiple source cells fail. Workbook/Worksheet describe the schema;
+	// Diagnostic describes the actual input, including shard workbooks.
+	Diagnostic *diagnostic.Desc `json:"diagnostic,omitempty"`
+	cause      error
 }
 
 // String returns the issue as a human-readable string.
@@ -37,13 +44,15 @@ func (i *Issue) String() string {
 func (i *Issue) MarshalJSON() ([]byte, error) {
 	marshaler := protojson.MarshalOptions{}
 	out := struct {
-		Kind      IssueKind       `json:"kind"`
-		Message   string          `json:"message"`
-		Workbook  json.RawMessage `json:"workbook,omitempty"`
-		Worksheet json.RawMessage `json:"worksheet,omitempty"`
+		Kind       IssueKind        `json:"kind"`
+		Message    string           `json:"message"`
+		Workbook   json.RawMessage  `json:"workbook,omitempty"`
+		Worksheet  json.RawMessage  `json:"worksheet,omitempty"`
+		Diagnostic *diagnostic.Desc `json:"diagnostic,omitempty"`
 	}{
-		Kind:    i.Kind,
-		Message: i.Message,
+		Kind:       i.Kind,
+		Message:    i.Message,
+		Diagnostic: i.Diagnostic,
 	}
 	if i.Workbook != nil {
 		b, err := marshaler.Marshal(i.Workbook)
@@ -88,6 +97,17 @@ var ErrorFormatJSON ErrorFormat = func(e *Error) string {
 type Error struct {
 	Issues []*Issue `json:"issues"`
 	format ErrorFormat
+}
+
+// Unwrap preserves the original error chains for errors.Is and errors.As.
+func (e *Error) Unwrap() []error {
+	var causes []error
+	for _, issue := range e.Issues {
+		if issue.cause != nil {
+			causes = append(causes, issue.cause)
+		}
+	}
+	return causes
 }
 
 // Error formats the result using the configured ErrorFormat.
