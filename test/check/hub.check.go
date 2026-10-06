@@ -149,7 +149,6 @@ func (h *Hub) load(loadType, dir string, f format.Format, options ...load.Option
 // internal descriptor, wrappers, or formatting fields.
 func newIssue(kind IssueKind, prefix string, msger tableau.Messager, err error) *Issue {
 	workbook, worksheet := getBookAndSheet(msger)
-	err = tableauapi.WrapError(err)
 	issue := &Issue{
 		Kind:      kind,
 		Message:   fmt.Sprintf("%s: %s", prefix, err),
