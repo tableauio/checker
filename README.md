@@ -87,11 +87,16 @@ on success. Import `github.com/tableauio/tableau`.
 Call `tableau.Inspect(err)` when reporting an error to obtain its
 flat `Details` list. Tableau load errors already contain their source metadata,
 including actual and primary workbooks, worksheets, and failing cells. Checker
-preserves those details and adds operation context through Go error wrapping.
-Custom check, compatibility, and post-load failures also carry the
-workbook and worksheet declared by their protobuf schema. Existing source details
+preserves those details. Custom check, compatibility, and post-load failures
+retain their original messages and carry the workbook and worksheet declared
+by their protobuf schema. Existing source details
 take precedence; custom messagers without a protobuf source retain plain errors.
 Failure limits count failed messagers, independently of detail count.
+
+Progress logs identify each failed messager on one line. Detailed errors are
+rendered once by the caller. Custom failures use Tableau code `E2032`
+(`custom check failed`) and retain their original message as the reason. Existing
+specific Tableau codes take precedence; aggregate numbering spans all failures.
 
 Use `errors.New` or `fmt.Errorf` for custom failures. When a failure belongs to
 a more specific workbook or sheet, attach its source with `tableau.WrapKV`:

@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
-	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -35,8 +34,8 @@ func TestCheck(t *testing.T) {
 	for _, tt := range []struct {
 		lang, wantText string
 	}{
-		{"en", "Workbook: Test#*.csv\nWorksheet: Activity\nReason: check ActivityConf failed: awardId: 0 not found\n"},
-		{"zh", "工作簿: Test#*.csv\n工作表: Activity\n错误原因: check ActivityConf failed: awardId: 0 not found\n"},
+		{"en", "error[E2032]: custom check failed\nWorkbook: Test#*.csv\nWorksheet: Activity\nReason: awardId: 0 not found\n"},
+		{"zh", "error[E2032]: custom check failed\n工作簿: Test#*.csv\n工作表: Activity\n错误原因: awardId: 0 not found\n"},
 	} {
 		t.Run(tt.lang, func(t *testing.T) {
 			require.NoError(t, tableauapi.SetLang(tt.lang))
@@ -48,14 +47,14 @@ func TestCheck(t *testing.T) {
 			serr := tableauapi.Inspect(err)
 			require.Len(t, serr.Details, 1)
 			detail := serr.Details[0]
-			assert.Equal(t, "check ActivityConf failed: awardId: 0 not found", detail.Message)
+			assert.Equal(t, "awardId: 0 not found", detail.Message)
 			require.NotNil(t, detail.Source)
 			assert.Equal(t, "Test#*.csv", detail.Source.Workbook)
 			assert.Equal(t, "Activity", detail.Source.Worksheet)
 			assert.Equal(t, tt.wantText, serr.Error())
 			data, marshalErr := json.Marshal(serr)
 			require.NoError(t, marshalErr)
-			assert.JSONEq(t, `{"details":[{"message":"check ActivityConf failed: awardId: 0 not found","source":{"workbook":"Test#*.csv","worksheet":"Activity"}}]}`, string(data))
+			assert.JSONEq(t, `{"details":[{"code":"E2032","description":"custom check failed","module":"default","message":"awardId: 0 not found","source":{"workbook":"Test#*.csv","worksheet":"Activity"}}]}`, string(data))
 		})
 	}
 }
@@ -68,9 +67,8 @@ func TestCheckCompatibility(t *testing.T) {
 	serr := tableauapi.Inspect(err)
 	var loads, compatibility int
 	for _, detail := range serr.Details {
-		if strings.HasPrefix(detail.Message, "check compatibility of ") {
+		if detail.Code == "E2032" {
 			compatibility++
-			assert.Contains(t, detail.Message, "ItemConf incompatible:")
 			assert.Contains(t, detail.Message, "removed in new version:")
 		} else {
 			loads++

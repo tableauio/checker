@@ -30,9 +30,10 @@ func Example_check() {
 	}
 	// Output:
 	// custom item conf processed
+	// error[E2032]: custom check failed
 	// Workbook: Test#*.csv
 	// Worksheet: Activity
-	// Reason: check ActivityConf failed: awardId: 0 not found
+	// Reason: awardId: 0 not found
 }
 
 // Example_checkCompatibility demonstrates how to compare two snapshots of
@@ -58,9 +59,10 @@ func Example_checkCompatibility() {
 	}
 	fmt.Println(tableauapi.Inspect(err))
 	// Output:
+	// error[E2032]: custom check failed
 	// Workbook: Test#*.csv
 	// Worksheet: Activity
-	// Reason: check compatibility of ActivityConf failed: ItemConf incompatible: 5 item id(s) removed in new version: [2 3 2001 2002 2003]
+	// Reason: ItemConf incompatible: 5 item id(s) removed in new version: [2 3 2001 2002 2003]
 }
 
 // Example_customConf shows reading a derived messager after Check. The hub

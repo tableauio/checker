@@ -120,7 +120,7 @@ func (h *Hub) load(loadType, dir string, f format.Format, options ...load.Option
 		for _, name := range names {
 			msger := loadedMessagers[name]
 			if err := msger.ProcessAfterLoadAll(h.Hub); err != nil {
-				failures = append(failures, wrapSource(fmt.Errorf("process %s after load all failed: %w", name, err), msger))
+				failures = append(failures, wrapCheckError(err, msger))
 				log.Infof("--- FAIL: %v%v ProcessAfterLoadAll", name, loadType)
 			}
 		}
@@ -128,8 +128,9 @@ func (h *Hub) load(loadType, dir string, f format.Format, options ...load.Option
 	return checkers, failures
 }
 
-// wrapSource adds schema metadata to custom failures using Tableau's error keys.
-func wrapSource(err error, msger tableau.Messager) error {
+// wrapCheckError classifies custom failures and adds schema source defaults.
+func wrapCheckError(err error, msger tableau.Messager) error {
+	err = tableauapi.E2032(err)
 	msg := msger.Message()
 	if msg == nil {
 		return err
@@ -157,8 +158,8 @@ func (h *Hub) check(breakFailedCount int) []error {
 		log.Infof("=== RUN   %v", name)
 		err := checker.Check(h.Hub)
 		if err != nil {
-			failure := wrapSource(fmt.Errorf("check %s failed: %w", name, err), checker)
-			log.Errorf("--- FAIL: %v", failure)
+			failure := wrapCheckError(err, checker)
+			log.Infof("--- FAIL: %v", name)
 			failures = append(failures, failure)
 		} else {
 			log.Infof("--- PASS: %v", name)
@@ -181,8 +182,8 @@ func (h *Hub) checkCompatibility(newHub *tableau.Hub, breakFailedCount int) []er
 		log.Infof("=== RUN   %v", name)
 		err := checker.CheckCompatibility(h.Hub, newHub)
 		if err != nil {
-			failure := wrapSource(fmt.Errorf("check compatibility of %s failed: %w", name, err), checker)
-			log.Errorf("--- FAIL: %v", failure)
+			failure := wrapCheckError(err, checker)
+			log.Infof("--- FAIL: %v", name)
 			failures = append(failures, failure)
 		} else {
 			log.Infof("--- PASS: %v", name)

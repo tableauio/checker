@@ -57,6 +57,8 @@ func TestCustomFailureSource(t *testing.T) {
 			assert.Equal(t, "Test#*.csv", serr.Details[0].Source.Workbook)
 			assert.Equal(t, "Activity", serr.Details[0].Source.Worksheet)
 			assert.Nil(t, serr.Details[0].Source.Cell)
+			assert.Equal(t, "condition missing", serr.Details[0].Message)
+			assert.Equal(t, "E2032", serr.Details[0].Code)
 		})
 	}
 }
@@ -69,10 +71,12 @@ func TestCustomFailureKeepsPreciseSource(t *testing.T) {
 		err         error
 		wantMessage string
 		wantSource  *tableauapi.SourceLocation
+		wantCode    string
 	}{
 		{
 			name:        "structured error",
 			wantMessage: "invalid value",
+			wantCode:    "E2032",
 			wantSource:  source,
 			err: &tableauapi.Error{Details: []*tableauapi.ErrorDetail{{
 				Message: "invalid value", Source: source,
@@ -80,10 +84,21 @@ func TestCustomFailureKeepsPreciseSource(t *testing.T) {
 		},
 		{
 			name:        "metadata error",
-			wantMessage: "check ActivityConf failed: invalid value",
+			wantMessage: "invalid value",
+			wantCode:    "E2032",
 			wantSource:  &tableauapi.SourceLocation{Workbook: "Shard.xlsx", Worksheet: "SubSheet"},
 			err: tableauapi.WrapKV(errors.New("invalid value"),
 				tableauapi.KeyBookName, "Shard.xlsx", tableauapi.KeySheetName, "SubSheet"),
+		},
+		{
+			name:        "coded error",
+			wantMessage: "invalid value",
+			wantCode:    "E2012",
+			wantSource:  source,
+			err: &tableauapi.Error{Details: []*tableauapi.ErrorDetail{{
+				Code: "E2012", Description: "invalid syntax of numerical value", Module: "confgen",
+				Message: "invalid value", Source: source,
+			}}},
 		},
 	} {
 		t.Run(tt.name, func(t *testing.T) {
@@ -94,6 +109,7 @@ func TestCustomFailureKeepsPreciseSource(t *testing.T) {
 			require.Len(t, serr.Details, 1)
 			assert.Equal(t, tt.wantSource, serr.Details[0].Source)
 			assert.Equal(t, tt.wantMessage, serr.Details[0].Message)
+			assert.Equal(t, tt.wantCode, serr.Details[0].Code)
 			assert.Equal(t, tt.wantSource, tableauapi.Inspect(tt.err).Details[0].Source)
 		})
 	}
