@@ -62,17 +62,37 @@ func TestCustomFailureSource(t *testing.T) {
 }
 
 func TestCustomFailureKeepsPreciseSource(t *testing.T) {
-	original := &tableauapi.Error{Details: []*tableauapi.ErrorDetail{{
-		Message: "invalid value",
-		Source: &tableauapi.SourceLocation{Workbook: "Shard.xlsx", Worksheet: "SubSheet",
-			Cell: &tableauapi.CellLocation{Position: "B4", Data: "invalid"}},
-	}}}
-	hub := NewHub()
-	hub.checkers["ActivityConf"] = &failingChecker{failure: original}
-	serr := tableauapi.Inspect(errors.Join(hub.check(0)...))
-	require.ErrorIs(t, serr, original)
-	require.Len(t, serr.Details, 1)
-	assert.Equal(t, original.Details[0].Source, serr.Details[0].Source)
-	assert.Equal(t, "invalid value", serr.Details[0].Message)
-	assert.Equal(t, "Shard.xlsx", original.Details[0].Source.Workbook)
+	source := &tableauapi.SourceLocation{Workbook: "Shard.xlsx", Worksheet: "SubSheet",
+		Cell: &tableauapi.CellLocation{Position: "B4", Data: "invalid"}}
+	for _, tt := range []struct {
+		name        string
+		err         error
+		wantMessage string
+	}{
+		{
+			name:        "structured error",
+			wantMessage: "invalid value",
+			err: &tableauapi.Error{Details: []*tableauapi.ErrorDetail{{
+				Message: "invalid value", Source: source,
+			}}},
+		},
+		{
+			name:        "metadata error",
+			wantMessage: "check ActivityConf failed: invalid value",
+			err: tableauapi.NewKV("invalid value",
+				tableauapi.KeyBookName, "Shard.xlsx", tableauapi.KeySheetName, "SubSheet",
+				tableauapi.KeyDataCellPos, "B4", tableauapi.KeyDataCell, "invalid"),
+		},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			hub := NewHub()
+			hub.checkers["ActivityConf"] = &failingChecker{failure: tt.err}
+			serr := tableauapi.Inspect(errors.Join(hub.check(0)...))
+			require.ErrorIs(t, serr, tt.err)
+			require.Len(t, serr.Details, 1)
+			assert.Equal(t, source, serr.Details[0].Source)
+			assert.Equal(t, tt.wantMessage, serr.Details[0].Message)
+			assert.Equal(t, source, tableauapi.Inspect(tt.err).Details[0].Source)
+		})
+	}
 }
