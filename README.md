@@ -20,7 +20,7 @@ It has no `main` package, so `cd test && go run .` does **not** work.
 
 From the repo root:
 
-The structured error integration uses the public `github.com/tableauio/tableau/xerrors` API from
+The structured error integration uses the public `github.com/tableauio/tableau` API from
 the Tableau revision pinned in `go.mod` ([companion PR](https://github.com/tableauio/tableau/pull/463)).
 Standalone builds use that dependency directly. To develop both repositories
 together, optionally use the sibling Tableau checkout:
@@ -83,8 +83,8 @@ Common options:
 ## Structured errors
 
 `Check` and `CheckCompatibility` return joined error chains on failure and nil
-on success. Import `github.com/tableauio/tableau/xerrors`.
-Call `xerrors.Inspect(err)` when reporting an error to obtain its
+on success. Import `github.com/tableauio/tableau`.
+Call `tableau.Inspect(err)` when reporting an error to obtain its
 flat `Details` list. Tableau load errors already contain their source metadata,
 including actual and primary workbooks, worksheets, and failing cells. Checker
 preserves those details and adds operation context through ordinary Go error
@@ -97,7 +97,7 @@ reachable through `errors.As` and `errors.Is` before and after inspection.
 
 ```go
 if err := hub.Check(dir, format.JSON); err != nil {
-    serr := xerrors.Inspect(err)
+    serr := tableau.Inspect(err)
     fmt.Print(serr)
     // For JSON output, use json.Marshal(serr).
 }

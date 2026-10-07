@@ -6,9 +6,9 @@ import (
 	"github.com/tableauio/checker/test/check"
 	"github.com/tableauio/checker/test/customconf"
 	"github.com/tableauio/checker/test/protoconf/tableau"
+	tableauapi "github.com/tableauio/tableau"
 	"github.com/tableauio/tableau/format"
 	"github.com/tableauio/tableau/load"
-	"github.com/tableauio/tableau/xerrors"
 )
 
 // Example_check demonstrates how to run the checker against a directory of
@@ -26,7 +26,7 @@ func Example_check() {
 		check.WithLoadOptions(load.IgnoreUnknownFields()),
 	)
 	if err != nil {
-		fmt.Println(xerrors.Inspect(err))
+		fmt.Println(tableauapi.Inspect(err))
 	}
 	// Output:
 	// custom item conf processed
@@ -54,7 +54,7 @@ func Example_checkCompatibility() {
 		fmt.Println("compatible")
 		return
 	}
-	fmt.Println(xerrors.Inspect(err))
+	fmt.Println(tableauapi.Inspect(err))
 	// Output:
 	// check compatibility of ActivityConf failed: ItemConf incompatible: 5 item id(s) removed in new version: [2 3 2001 2002 2003]
 }

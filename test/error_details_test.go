@@ -13,7 +13,6 @@ import (
 	tableauapi "github.com/tableauio/tableau"
 	"github.com/tableauio/tableau/format"
 	"github.com/tableauio/tableau/load"
-	"github.com/tableauio/tableau/xerrors"
 	"google.golang.org/protobuf/proto"
 )
 
@@ -31,7 +30,7 @@ func TestLoadShardErrorDetails(t *testing.T) {
 					check.WithLoadOptions(load.MaxErrorsPerSheet(limit)),
 				)
 				require.Error(t, err)
-				serr := xerrors.Inspect(err)
+				serr := tableauapi.Inspect(err)
 				assert.NotContains(t, serr.Error(), "--- debugging ---")
 				assert.NotContains(t, serr.Error(), "goroutine")
 				details := serr.Details
@@ -70,7 +69,7 @@ func TestLoadShardErrorDetails(t *testing.T) {
 				}
 
 				// JSON uses the same flat Tableau details as text output.
-				var encoded xerrors.Error
+				var encoded tableauapi.Error
 				data, marshalErr := json.Marshal(serr)
 				require.NoError(t, marshalErr)
 				require.NoError(t, json.Unmarshal(data, &encoded))
@@ -97,7 +96,7 @@ func TestLoadPreservesCause(t *testing.T) {
 		})),
 	)
 	require.ErrorIs(t, err, cause)
-	serr := xerrors.Inspect(err)
+	serr := tableauapi.Inspect(err)
 	require.ErrorIs(t, serr, cause)
 	require.Len(t, serr.Details, 1)
 	assert.Equal(t, "load ChapterConf failed: load config: custom loader unavailable", serr.Details[0].Message)
@@ -118,15 +117,15 @@ func TestLoadKeepsSuccessfulMessagers(t *testing.T) {
 	require.ErrorIs(t, err, cause)
 	assert.NotNil(t, hub.GetMessager("ChapterConf"))
 	assert.Nil(t, hub.GetMessager("ItemConf"))
-	serr := xerrors.Inspect(err)
+	serr := tableauapi.Inspect(err)
 	require.Len(t, serr.Details, 1)
 	assert.Equal(t, "load ItemConf failed: item config unavailable", serr.Details[0].Message)
 }
 
 func TestStructuredFailurePreservesInput(t *testing.T) {
-	original := &xerrors.Error{Details: []*xerrors.ErrorDetail{{
+	original := &tableauapi.Error{Details: []*tableauapi.ErrorDetail{{
 		Message: "invalid number",
-		Source:  &xerrors.SourceLocation{Workbook: "Shard#*.csv"},
+		Source:  &tableauapi.SourceLocation{Workbook: "Shard#*.csv"},
 	}}}
 	err := check.NewHub(tableau.Filter(func(name string) bool { return name == "ChapterConf" })).Check(
 		"unused", format.JSON,
@@ -135,7 +134,7 @@ func TestStructuredFailurePreservesInput(t *testing.T) {
 		})),
 	)
 	require.ErrorIs(t, err, original)
-	serr := xerrors.Inspect(err)
+	serr := tableauapi.Inspect(err)
 	require.Len(t, serr.Details, 1)
 	assert.Equal(t, "invalid number", serr.Details[0].Message)
 	assert.Equal(t, "Shard#*.csv", serr.Details[0].Source.Workbook)
@@ -145,9 +144,9 @@ func TestStructuredFailurePreservesInput(t *testing.T) {
 }
 
 func TestMixedFailuresPreserveCausesAndInput(t *testing.T) {
-	original := &xerrors.Error{Details: []*xerrors.ErrorDetail{{
+	original := &tableauapi.Error{Details: []*tableauapi.ErrorDetail{{
 		Code: "E2012", Description: "invalid syntax of numerical value", Message: "invalid number", Module: "confgen",
-		Source: &xerrors.SourceLocation{Workbook: "Shard#*.csv", Worksheet: "ShardSheet", PrimaryWorkbook: "Main#*.csv"},
+		Source: &tableauapi.SourceLocation{Workbook: "Shard#*.csv", Worksheet: "ShardSheet", PrimaryWorkbook: "Main#*.csv"},
 	}}}
 	plain := errors.New("custom loader unavailable")
 	err := check.NewHub(tableau.Filter(func(name string) bool { return name == "ChapterConf" })).Check(
@@ -157,7 +156,7 @@ func TestMixedFailuresPreserveCausesAndInput(t *testing.T) {
 		})),
 	)
 	require.Error(t, err)
-	serr := xerrors.Inspect(err)
+	serr := tableauapi.Inspect(err)
 	require.Len(t, serr.Details, 2)
 	require.ErrorIs(t, err, original)
 	require.ErrorIs(t, err, plain)

@@ -15,7 +15,6 @@ import (
 	tableauapi "github.com/tableauio/tableau"
 	"github.com/tableauio/tableau/format"
 	"github.com/tableauio/tableau/load"
-	"github.com/tableauio/tableau/xerrors"
 )
 
 func TestLoad(t *testing.T) {
@@ -25,7 +24,7 @@ func TestLoad(t *testing.T) {
 		check.WithLoadOptions(load.IgnoreUnknownFields()))
 	require.Error(t, err)
 	assert.Empty(t, hub.GetMessagerMap(), "failed loads must not be published")
-	serr := xerrors.Inspect(err)
+	serr := tableauapi.Inspect(err)
 	require.NotEmpty(t, serr.Details)
 	for _, detail := range serr.Details {
 		assert.Contains(t, detail.Message, "non-existent-dir")
@@ -37,7 +36,7 @@ func TestCheck(t *testing.T) {
 		check.BreakFailedCount(1),
 		check.WithLoadOptions(load.IgnoreUnknownFields()))
 	require.Error(t, err)
-	serr := xerrors.Inspect(err)
+	serr := tableauapi.Inspect(err)
 	require.Len(t, serr.Details, 1)
 	detail := serr.Details[0]
 	assert.Equal(t, "check ActivityConf failed: awardId: 0 not found", detail.Message)
@@ -53,7 +52,7 @@ func TestCheckCompatibility(t *testing.T) {
 		check.SkipLoadErrors(), check.BreakFailedCount(10),
 		check.WithLoadOptions(load.IgnoreUnknownFields()))
 	require.Error(t, err)
-	serr := xerrors.Inspect(err)
+	serr := tableauapi.Inspect(err)
 	var loads, compatibility int
 	for _, detail := range serr.Details {
 		if strings.HasPrefix(detail.Message, "check compatibility of ") {
@@ -84,7 +83,7 @@ func TestLoadOriginFromCSV(t *testing.T) {
 		check.BreakFailedCount(10),
 		check.WithLoadOptions(load.MaxErrorsPerSheet(5)))
 	require.Error(t, err)
-	serr := xerrors.Inspect(err)
+	serr := tableauapi.Inspect(err)
 	counts := map[string]int{}
 	for _, detail := range serr.Details {
 		assert.NotContains(t, detail.Message, "[1] error")
@@ -149,7 +148,7 @@ Help: change "refer" prop or add referred sheet column "ID"
 				return
 			}
 			require.Error(t, err)
-			serr := xerrors.Inspect(err)
+			serr := tableauapi.Inspect(err)
 			require.Len(t, serr.Details, 1)
 			detail := serr.Details[0]
 			assert.Equal(t, tt.code, detail.Code)
@@ -231,7 +230,7 @@ Help: fill cell data with valid syntax of numerical type "uint64"
 			err := check.NewHub(tableau.Filter(func(name string) bool { return name == "ThemeConf" })).Check(dir, format.CSV,
 				check.WithLoadOptions(load.MaxErrorsPerSheet(5)))
 			require.Error(t, err)
-			serr := xerrors.Inspect(err)
+			serr := tableauapi.Inspect(err)
 			require.Len(t, serr.Details, 1)
 			detail := serr.Details[0]
 			assert.Equal(t, "E2012", detail.Code)
@@ -247,7 +246,7 @@ Help: fill cell data with valid syntax of numerical type "uint64"
 			assert.Equal(t, tt.wantText, fmt.Sprint(serr))
 			data, marshalErr := json.Marshal(serr)
 			require.NoError(t, marshalErr)
-			var decoded xerrors.Error
+			var decoded tableauapi.Error
 			require.NoError(t, json.Unmarshal(data, &decoded))
 			require.Len(t, decoded.Details, 1)
 			assert.Equal(t, detail.Source, decoded.Details[0].Source)
