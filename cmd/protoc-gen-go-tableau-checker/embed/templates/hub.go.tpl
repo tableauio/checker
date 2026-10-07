@@ -3,7 +3,6 @@ import (
 	tableau {{.LoaderImport}}
 
 	"errors"
-	"fmt"
 	"maps"
 	"slices"
 	"sync"
@@ -75,7 +74,7 @@ const (
 // checkers to Hub.checkers when those checkers should drive subsequent Check /
 // CheckCompatibility runs. This avoids CheckCompatibility's second load from
 // silently overwriting the first load's checkers mid-flight.
-func (h *Hub) load(loadType, dir string, f format.Format, options ...load.Option) (map[string]checker, []*Issue) {
+func (h *Hub) load(loadType, dir string, f format.Format, options ...load.Option) (map[string]checker, []error) {
 	opts := load.ParseOptions(options...)
 	messagerMap := h.NewMessagerMap()
 	checkers := make(map[string]checker)
@@ -83,7 +82,7 @@ func (h *Hub) load(loadType, dir string, f format.Format, options ...load.Option
 	type loadResult struct {
 		name  string
 		msger tableau.Messager
-		issue *Issue
+		failure error
 	}
 	results := make(chan loadResult, len(messagerMap))
 	var wg sync.WaitGroup
@@ -102,7 +101,7 @@ func (h *Hub) load(loadType, dir string, f format.Format, options ...load.Option
 				log.Infof("--- FAIL: %v%v", name, loadType)
 				results <- loadResult{
 					name: name,
-					issue: newIssue(IssueKindLoad, "load failed", msger, err),
+					failure: newFailure("load" + loadType + " failed", msger, err),
 				}
 				return
 			}
@@ -116,10 +115,10 @@ func (h *Hub) load(loadType, dir string, f format.Format, options ...load.Option
 	}()
 
 	msgers := make(tableau.MessagerMap, len(messagerMap))
-	issues := make([]*Issue, 0, len(messagerMap))
+	failures := make([]error, 0, len(messagerMap))
 	for r := range results {
-		if r.issue != nil {
-			issues = append(issues, r.issue)
+		if r.failure != nil {
+			failures = append(failures, r.failure)
 			continue
 		}
 		msgers[r.name] = r.msger
@@ -127,34 +126,39 @@ func (h *Hub) load(loadType, dir string, f format.Format, options ...load.Option
 	h.SetMessagerMap(msgers)
 	// Align with tableau.Hub.Load: after all messagers are loaded, run
 	// ProcessAfterLoadAll so derived messagers (e.g. custom conf indexes) can build.
-	if len(issues) == 0 {
+	if len(failures) == 0 {
 		for _, name := range slices.Sorted(maps.Keys(msgers)) {
 			msger := msgers[name]
 			if err := msger.ProcessAfterLoadAll(h.Hub); err != nil {
-				issues = append(issues, newIssue(IssueKindLoad, "process after load all failed", msger, err))
+				failures = append(failures, newFailure("process after load all failed", msger, err))
 				log.Infof("--- FAIL: %v%v ProcessAfterLoadAll", name, loadType)
 			}
 		}
 	}
-	return checkers, issues
+	return checkers, failures
 }
 
-// newIssue normalizes failures once and retains structured details and original causes.
-func newIssue(kind IssueKind, prefix string, msger tableau.Messager, err error) *Issue {
-	err = tableauapi.Normalize(err)
+// newFailure adds checker context to an independent view of the original error.
+func newFailure(prefix string, msger tableau.Messager, err error) *tableauapi.Error {
+	// Joining creates a fresh view even when err is already a *tableau.Error.
+	serr := tableauapi.Inspect(errors.Join(err))
 	workbook, worksheet := getBookAndSheet(msger)
-	issue := &Issue{
-		Kind:      kind,
-		Message:   fmt.Sprintf("%s: %s", prefix, err),
-		Workbook:  workbook,
-		Worksheet: worksheet,
-		cause:     err,
+	for _, detail := range serr.Details {
+		detail.Message = prefix + ": " + detail.Message
+		if detail.Source == nil {
+			if workbook.GetName() == "" && worksheet.GetName() == "" {
+				continue
+			}
+			detail.Source = &tableauapi.SourceLocation{}
+		}
+		if detail.Source.Workbook == "" {
+			detail.Source.Workbook = workbook.GetName()
+		}
+		if detail.Source.Worksheet == "" {
+			detail.Source.Worksheet = worksheet.GetName()
+		}
 	}
-	var serr *tableauapi.Error
-	if errors.As(err, &serr) {
-		issue.Details = serr.Details
-	}
-	return issue
+	return serr
 }
 
 // getBookAndSheet resolves workbook/worksheet options from a messager's
@@ -175,28 +179,28 @@ func getBookAndSheet(msger tableau.Messager) (*tableaupb.WorkbookOptions, *table
 	return workbook, worksheet
 }
 
-func (h *Hub) check(breakFailedCount int) []*Issue {
-	issues := make([]*Issue, 0, len(h.checkers))
+func (h *Hub) check(breakFailedCount int) []error {
+	failures := make([]error, 0, len(h.checkers))
 	for _, name := range slices.Sorted(maps.Keys(h.checkers)) {
 		checker := h.checkers[name]
 		log.Infof("=== RUN   %v", name)
 		err := checker.Check(h.Hub)
 		if err != nil {
-			issue := newIssue(IssueKindCheck, "custom check failed", checker, err)
-			log.Errorf("--- FAIL: workbook %s, worksheet %s", issue.Workbook.GetName(), issue.Worksheet.GetName())
-			issues = append(issues, issue)
+			failure := newFailure("custom check failed", checker, err)
+			log.Errorf("--- FAIL: %v", failure)
+			failures = append(failures, failure)
 		} else {
 			log.Infof("--- PASS: %v", name)
 		}
-		if breakFailedCount > 0 && len(issues) >= breakFailedCount {
+		if breakFailedCount > 0 && len(failures) >= breakFailedCount {
 			break
 		}
 	}
-	return issues
+	return failures
 }
 
-func (h *Hub) checkCompatibility(newHub *tableau.Hub, breakFailedCount int) []*Issue {
-	issues := make([]*Issue, 0, len(h.checkers))
+func (h *Hub) checkCompatibility(newHub *tableau.Hub, breakFailedCount int) []error {
+	failures := make([]error, 0, len(h.checkers))
 	for _, name := range slices.Sorted(maps.Keys(h.checkers)) {
 		checker := h.checkers[name]
 		if h.GetMessager(name) == nil || newHub.GetMessager(name) == nil {
@@ -206,29 +210,29 @@ func (h *Hub) checkCompatibility(newHub *tableau.Hub, breakFailedCount int) []*I
 		log.Infof("=== RUN   %v", name)
 		err := checker.CheckCompatibility(h.Hub, newHub)
 		if err != nil {
-			issue := newIssue(IssueKindCompatibility, "custom check failed", checker, err)
-			log.Errorf("--- FAIL: workbook %s, worksheet %s", issue.Workbook.GetName(), issue.Worksheet.GetName())
-			issues = append(issues, issue)
+			failure := newFailure("compatibility check failed", checker, err)
+			log.Errorf("--- FAIL: %v", failure)
+			failures = append(failures, failure)
 		} else {
 			log.Infof("--- PASS: %v", name)
 		}
-		if breakFailedCount > 0 && len(issues) >= breakFailedCount {
+		if breakFailedCount > 0 && len(failures) >= breakFailedCount {
 			break
 		}
 	}
-	return issues
+	return failures
 }
 
 func (h *Hub) Check(dir string, format format.Format, options ...Option) error {
 	opts := ParseOptions(options...)
-	checkers, loadIssues := h.load(loadTypeDefault, dir, format, opts.LoadOptions...)
-	if len(loadIssues) > 0 {
-		return &Error{Issues: loadIssues, format: opts.ErrorFormat}
+	checkers, loadErrors := h.load(loadTypeDefault, dir, format, opts.LoadOptions...)
+	if len(loadErrors) > 0 {
+		return newError(loadErrors, opts.ErrorFormat)
 	}
 	h.checkers = checkers
-	checkIssues := h.check(opts.BreakFailedCount)
-	if len(checkIssues) > 0 {
-		return &Error{Issues: checkIssues, format: opts.ErrorFormat}
+	checkErrors := h.check(opts.BreakFailedCount)
+	if len(checkErrors) > 0 {
+		return newError(checkErrors, opts.ErrorFormat)
 	}
 	return nil
 }
@@ -236,23 +240,23 @@ func (h *Hub) Check(dir string, format format.Format, options ...Option) error {
 func (h *Hub) CheckCompatibility(dir, newDir string, format format.Format, options ...Option) error {
 	opts := ParseOptions(options...)
 	// Load new config first; keep its messager map on newHub.
-	_, newLoadIssues := h.load(loadTypeNew, newDir, format, opts.LoadOptions...)
-	if len(newLoadIssues) > 0 && !opts.SkipLoadErrors {
-		return &Error{Issues: newLoadIssues, format: opts.ErrorFormat}
+	_, newLoadErrors := h.load(loadTypeNew, newDir, format, opts.LoadOptions...)
+	if len(newLoadErrors) > 0 && !opts.SkipLoadErrors {
+		return newError(newLoadErrors, opts.ErrorFormat)
 	}
 	newHub := tableau.NewHub()
 	newHub.SetMessagerMap(h.GetMessagerMap())
 	// Load old config into this hub. Compatibility checkers must own the old
 	// messager data, so assign the old checkers explicitly after this load.
-	oldCheckers, oldLoadIssues := h.load(loadTypeOld, dir, format, opts.LoadOptions...)
-	if len(oldLoadIssues) > 0 && !opts.SkipLoadErrors {
-		return &Error{Issues: append(newLoadIssues, oldLoadIssues...), format: opts.ErrorFormat}
+	oldCheckers, oldLoadErrors := h.load(loadTypeOld, dir, format, opts.LoadOptions...)
+	if len(oldLoadErrors) > 0 && !opts.SkipLoadErrors {
+		return newError(append(newLoadErrors, oldLoadErrors...), opts.ErrorFormat)
 	}
 	h.checkers = oldCheckers
-	compatIssues := h.checkCompatibility(newHub, opts.BreakFailedCount)
-	allIssues := append(append(newLoadIssues, oldLoadIssues...), compatIssues...)
-	if len(allIssues) > 0 {
-		return &Error{Issues: allIssues, format: opts.ErrorFormat}
+	compatErrors := h.checkCompatibility(newHub, opts.BreakFailedCount)
+	allErrors := append(append(newLoadErrors, oldLoadErrors...), compatErrors...)
+	if len(allErrors) > 0 {
+		return newError(allErrors, opts.ErrorFormat)
 	}
 	return nil
 }
@@ -282,8 +286,7 @@ type Options struct {
 	//
 	// Default: nil.
 	LoadOptions []load.Option
-	// ErrorFormat controls how issues are formatted when the error is printed.
-	// Default: ErrorFormatText.
+	// ErrorFormat controls error presentation. Nil uses Tableau's text renderer.
 	ErrorFormat ErrorFormat
 }
 
@@ -332,7 +335,6 @@ func newDefault() *Options {
 	return &Options{
 		BreakFailedCount: 1,
 		ProtoPackage:     "protoconf",
-		ErrorFormat:      ErrorFormatText,
 	}
 }
 

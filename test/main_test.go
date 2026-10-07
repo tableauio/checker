@@ -1,6 +1,7 @@
 package main
 
 import (
+	"encoding/json"
 	"errors"
 	"strings"
 	"testing"
@@ -9,309 +10,157 @@ import (
 	"github.com/stretchr/testify/require"
 	"github.com/tableauio/checker/test/check"
 	"github.com/tableauio/checker/test/protoconf/tableau"
+	tableauapi "github.com/tableauio/tableau"
 	"github.com/tableauio/tableau/format"
 	"github.com/tableauio/tableau/load"
+	"google.golang.org/protobuf/proto"
 )
 
+// structuredError obtains the same Tableau model from text and formatted errors.
+func structuredError(t *testing.T, err error) *tableauapi.Error {
+	t.Helper()
+	require.Error(t, err)
+	var serr *tableauapi.Error
+	require.ErrorAs(t, err, &serr)
+	return serr
+}
+
+func assertJSONDetails(t *testing.T, err error, serr *tableauapi.Error) {
+	t.Helper()
+	want, marshalErr := json.Marshal(serr)
+	require.NoError(t, marshalErr)
+	assert.JSONEq(t, string(want), err.Error())
+	assert.NotContains(t, err.Error(), "\n")
+	assert.NotContains(t, err.Error(), `"issues"`)
+}
+
 func TestLoad(t *testing.T) {
-	run := func(ef check.ErrorFormat) error {
-		return check.NewHub().Check("./non-existent-dir/", format.JSON,
-			check.BreakFailedCount(10),
-			check.WithErrorFormat(ef),
-			check.WithLoadOptions(load.IgnoreUnknownFields()),
-		)
+	for name, ef := range map[string]check.ErrorFormat{"text": check.ErrorFormatText, "json": check.ErrorFormatJSON} {
+		t.Run(name, func(t *testing.T) {
+			err := check.NewHub().Check("./non-existent-dir/", format.JSON,
+				check.BreakFailedCount(10), check.WithErrorFormat(ef),
+				check.WithLoadOptions(load.IgnoreUnknownFields()))
+			serr := structuredError(t, err)
+			require.NotEmpty(t, serr.Details)
+			for _, detail := range serr.Details {
+				assert.Contains(t, detail.Message, "load failed:")
+				require.NotNil(t, detail.Source)
+				assert.NotEmpty(t, detail.Source.Workbook)
+				assert.NotEmpty(t, detail.Source.Worksheet)
+			}
+			if name == "json" {
+				assertJSONDetails(t, err, serr)
+			} else {
+				assert.Equal(t, serr.Error(), err.Error())
+				assert.Contains(t, err.Error(), "Workbook:")
+				assert.Contains(t, err.Error(), "Worksheet:")
+			}
+		})
 	}
-
-	t.Run("TextFormat", func(t *testing.T) {
-		err := run(check.ErrorFormatText)
-		require.Error(t, err)
-
-		var checkErr *check.Error
-		require.True(t, errors.As(err, &checkErr))
-		assert.Greater(t, len(checkErr.Issues), 0)
-		for _, issue := range checkErr.Issues {
-			assert.Equal(t, check.IssueKindLoad, issue.Kind)
-			assert.Contains(t, issue.Message, "load failed:")
-			assert.NotNil(t, issue.Workbook)
-			assert.NotNil(t, issue.Worksheet)
-			assert.NotEmpty(t, issue.Workbook.GetName())
-			assert.NotEmpty(t, issue.Worksheet.GetName())
-		}
-
-		errStr := err.Error()
-		assert.Contains(t, errStr, "error: workbook")
-		assert.Contains(t, errStr, "worksheet")
-		assert.Contains(t, errStr, "load failed:")
-		// Each issue should be on its own line in text format.
-		assert.Equal(t, len(checkErr.Issues), strings.Count(errStr, "error: workbook"))
-	})
-
-	t.Run("JSONFormat", func(t *testing.T) {
-		err := run(check.ErrorFormatJSON)
-		require.Error(t, err)
-
-		var checkErr *check.Error
-		require.True(t, errors.As(err, &checkErr))
-		assert.Greater(t, len(checkErr.Issues), 0)
-		for _, issue := range checkErr.Issues {
-			assert.Equal(t, check.IssueKindLoad, issue.Kind)
-			assert.Contains(t, issue.Message, "load failed:")
-		}
-
-		errStr := err.Error()
-		assert.Contains(t, errStr, `"issues"`)
-		assert.Contains(t, errStr, `"kind":"load"`)
-		assert.Contains(t, errStr, `"load failed:`)
-		assert.Contains(t, errStr, `"workbook":`)
-		assert.Contains(t, errStr, `"worksheet":`)
-	})
 }
 
 func TestCheck(t *testing.T) {
-	run := func(ef check.ErrorFormat) error {
-		return check.NewHub().Check("./testdata/", format.JSON,
-			check.BreakFailedCount(1),
-			check.WithErrorFormat(ef),
-			check.WithLoadOptions(load.IgnoreUnknownFields()),
-		)
+	for name, ef := range map[string]check.ErrorFormat{"text": nil, "json": check.ErrorFormatJSON} {
+		t.Run(name, func(t *testing.T) {
+			err := check.NewHub().Check("./testdata/", format.JSON,
+				check.BreakFailedCount(1), check.WithErrorFormat(ef),
+				check.WithLoadOptions(load.IgnoreUnknownFields()))
+			serr := structuredError(t, err)
+			require.Len(t, serr.Details, 1)
+			detail := serr.Details[0]
+			assert.Equal(t, "custom check failed: awardId: 0 not found", detail.Message)
+			require.NotNil(t, detail.Source)
+			assert.Equal(t, "Test#*.csv", detail.Source.Workbook)
+			assert.Equal(t, "Activity", detail.Source.Worksheet)
+			if name == "json" {
+				assert.JSONEq(t, `{"details":[{"message":"custom check failed: awardId: 0 not found","source":{"workbook":"Test#*.csv","worksheet":"Activity"}}]}`, err.Error())
+				assertJSONDetails(t, err, serr)
+			} else {
+				assert.Same(t, serr, err, "default output returns Tableau's error directly")
+				assert.Equal(t, "Workbook: Test#*.csv\nWorksheet: Activity\nReason: custom check failed: awardId: 0 not found\n", err.Error())
+			}
+		})
 	}
-
-	t.Run("TextFormat", func(t *testing.T) {
-		err := run(check.ErrorFormatText)
-		require.Error(t, err)
-
-		var checkErr *check.Error
-		require.True(t, errors.As(err, &checkErr))
-		assert.Len(t, checkErr.Issues, 1)
-		issue := checkErr.Issues[0]
-		assert.Equal(t, check.IssueKindCheck, issue.Kind)
-		assert.Equal(t, "custom check failed: awardId: 0 not found", issue.Message)
-		assert.Equal(t, "Test#*.csv", issue.Workbook.GetName())
-		assert.Equal(t, "Activity", issue.Worksheet.GetName())
-
-		errStr := err.Error()
-		assert.Equal(t,
-			"error: workbook Test#*.csv, worksheet Activity, custom check failed: awardId: 0 not found",
-			errStr)
-	})
-
-	t.Run("JSONFormat", func(t *testing.T) {
-		err := run(check.ErrorFormatJSON)
-		require.Error(t, err)
-
-		var checkErr *check.Error
-		require.True(t, errors.As(err, &checkErr))
-		assert.Len(t, checkErr.Issues, 1)
-		assert.Equal(t, check.IssueKindCheck, checkErr.Issues[0].Kind)
-
-		// Workbook/Worksheet use protojson field names (camelCase).
-		assert.JSONEq(t, `{
-			"issues": [
-				{
-					"kind": "check",
-					"message": "custom check failed: awardId: 0 not found",
-					"workbook": {"name": "Test#*.csv"},
-					"worksheet": {
-						"name": "Activity",
-						"orderedMap": true,
-						"index": ["ChapterID", "ChapterName@NamedChapter", "SectionItemId@Award"]
-					}
-				}
-			]
-		}`, err.Error())
-	})
 }
 
 func TestCheckCompatibility(t *testing.T) {
-	run := func(ef check.ErrorFormat) error {
-		return check.NewHub().CheckCompatibility("./testdata/", "./testdata1/", format.JSON,
-			check.SkipLoadErrors(),
-			check.BreakFailedCount(10),
-			check.WithErrorFormat(ef),
-			check.WithLoadOptions(load.IgnoreUnknownFields()),
-		)
+	for name, ef := range map[string]check.ErrorFormat{"text": check.ErrorFormatText, "json": check.ErrorFormatJSON} {
+		t.Run(name, func(t *testing.T) {
+			err := check.NewHub().CheckCompatibility("./testdata/", "./testdata1/", format.JSON,
+				check.SkipLoadErrors(), check.BreakFailedCount(10), check.WithErrorFormat(ef),
+				check.WithLoadOptions(load.IgnoreUnknownFields()))
+			serr := structuredError(t, err)
+			var loads, compatibility int
+			for _, detail := range serr.Details {
+				require.NotNil(t, detail.Source)
+				assert.NotEmpty(t, detail.Source.Workbook)
+				assert.NotEmpty(t, detail.Source.Worksheet)
+				if strings.HasPrefix(detail.Message, "load") {
+					loads++
+				} else if strings.HasPrefix(detail.Message, "compatibility check failed:") {
+					compatibility++
+					assert.Contains(t, detail.Message, "ItemConf incompatible:")
+					assert.Contains(t, detail.Message, "removed in new version:")
+				}
+			}
+			assert.Positive(t, loads, "load failures must survive SkipLoadErrors")
+			assert.Positive(t, compatibility, "compatibility checks must still run")
+			if name == "json" {
+				assertJSONDetails(t, err, serr)
+			} else {
+				assert.Equal(t, serr.Error(), err.Error())
+			}
+		})
 	}
-
-	// classifyIssues groups issues by their kind for further inspection.
-	classifyIssues := func(issues []*check.Issue) map[check.IssueKind][]*check.Issue {
-		m := make(map[check.IssueKind][]*check.Issue)
-		for _, i := range issues {
-			m[i.Kind] = append(m[i.Kind], i)
-		}
-		return m
-	}
-
-	t.Run("TextFormat", func(t *testing.T) {
-		err := run(check.ErrorFormatText)
-		require.Error(t, err)
-
-		var checkErr *check.Error
-		require.True(t, errors.As(err, &checkErr))
-		assert.Greater(t, len(checkErr.Issues), 0)
-
-		grouped := classifyIssues(checkErr.Issues)
-		assert.NotEmpty(t, grouped[check.IssueKindLoad], "expected load issues")
-		assert.NotEmpty(t, grouped[check.IssueKindCompatibility], "expected compatibility issues")
-
-		// Every load issue must carry the expected message prefix and book/sheet info.
-		for _, issue := range grouped[check.IssueKindLoad] {
-			assert.Contains(t, issue.Message, "load failed:")
-			assert.NotEmpty(t, issue.Workbook.GetName())
-			assert.NotEmpty(t, issue.Worksheet.GetName())
-		}
-		// Every compatibility issue must carry the expected message prefix.
-		for _, issue := range grouped[check.IssueKindCompatibility] {
-			assert.Contains(t, issue.Message, "custom check failed:")
-		}
-
-		errStr := err.Error()
-		assert.Contains(t, errStr, "error: workbook Test#*.csv")
-		assert.Contains(t, errStr, "load failed:")
-		assert.Contains(t, errStr, "custom check failed:")
-		// ActivityConf's CheckCompatibility reports ItemConf entries that
-		// existed in the old snapshot but were removed in the new one.
-		assert.Contains(t, errStr, "ItemConf incompatible:")
-		assert.Contains(t, errStr, "removed in new version:")
-	})
-
-	t.Run("JSONFormat", func(t *testing.T) {
-		err := run(check.ErrorFormatJSON)
-		require.Error(t, err)
-
-		var checkErr *check.Error
-		require.True(t, errors.As(err, &checkErr))
-		assert.Greater(t, len(checkErr.Issues), 0)
-
-		grouped := classifyIssues(checkErr.Issues)
-		assert.NotEmpty(t, grouped[check.IssueKindLoad], "expected load issues")
-		assert.NotEmpty(t, grouped[check.IssueKindCompatibility], "expected compatibility issues")
-
-		// Note: cannot use assert.JSONEq here because the number of load issues
-		// depends on testdata files present, making the full JSON non-deterministic.
-		errStr := err.Error()
-		assert.Contains(t, errStr, `"issues"`)
-		assert.Contains(t, errStr, `"kind":"load"`)
-		assert.Contains(t, errStr, `"kind":"compatibility"`)
-		assert.Contains(t, errStr, `"load failed:`)
-		assert.Contains(t, errStr, `"custom check failed:`)
-		assert.Contains(t, errStr, `"workbook":`)
-		assert.Contains(t, errStr, `"worksheet":`)
-	})
 }
 
-// loadOriginAllowList limits Hub loading to messagers whose CSV layout is
-// trivial (single vertical map, no refer / merger / scatter), so that the
-// loadOrigin-from-CSV path can be exercised by testdata2/testdata3 without
-// pulling in the more complex ActivityConf / ThemeConf layouts.
-var loadOriginAllowList = map[string]bool{
-	"ItemConf":    true,
-	"ChapterConf": true,
-}
+var loadOriginAllowList = map[string]bool{"ItemConf": true, "ChapterConf": true}
 
-func loadOriginFilter(name string) bool {
-	return loadOriginAllowList[name]
-}
+func loadOriginFilter(name string) bool { return loadOriginAllowList[name] }
 
-// TestLoadOriginFromCSV verifies that the checker can drive tableau's
-// loadOrigin path against real CSV inputs.
-//
-// The allow-listed messagers (ItemConf + ChapterConf) belong to two
-// separate workbooks ("Item#*.csv" and "Test#*.csv") and use the
-// simplest possible layouts (single vertical map of scalars), so the
-// success scenario exercises the end-to-end CSV loading pipeline
-// without depending on cross-sheet refer / merger / scatter.
+// TestLoadOriginFromCSV verifies loading succeeds for valid inputs and returns
+// one flat Tableau detail per failing cell for invalid inputs across two sheets.
 func TestLoadOriginFromCSV(t *testing.T) {
-	t.Run("Success", func(t *testing.T) {
-		err := check.NewHub(tableau.Filter(loadOriginFilter)).Check(
-			"./testdata2/", format.CSV,
-			check.BreakFailedCount(10),
-			check.WithErrorFormat(check.ErrorFormatText),
-		)
-		require.NoError(t, err, "expected loadOrigin from valid CSV inputs to succeed")
+	t.Run("success", func(t *testing.T) {
+		err := check.NewHub(tableau.Filter(loadOriginFilter)).Check("./testdata2/", format.CSV,
+			check.BreakFailedCount(10))
+		require.NoError(t, err)
 	})
-
-	// runFail loads testdata3/, where every allow-listed messager's CSV
-	// contains multiple cell-level errors. confgen's per-sheet child
-	// collector aggregates those errors into a single multi-line wrapped
-	// error per sheet, which the checker surfaces as one Issue per sheet.
-	//
-	// MaxErrorsPerSheet is bumped above the default fail-fast cap of 1
-	// so that loadOrigin's top-level collector lets confgen actually
-	// aggregate multiple row-level errors before bailing out.
-	runFail := func(t *testing.T, ef check.ErrorFormat) (*check.Error, string) {
-		t.Helper()
-		err := check.NewHub(tableau.Filter(loadOriginFilter)).Check(
-			"./testdata3/", format.CSV,
-			check.BreakFailedCount(10),
-			check.WithErrorFormat(ef),
-			check.WithLoadOptions(
-				load.MaxErrorsPerSheet(5),
-			),
-		)
-		require.Error(t, err)
-
-		var checkErr *check.Error
-		require.True(t, errors.As(err, &checkErr))
-		return checkErr, err.Error()
+	for name, ef := range map[string]check.ErrorFormat{"text": check.ErrorFormatText, "json": check.ErrorFormatJSON} {
+		t.Run(name, func(t *testing.T) {
+			err := check.NewHub(tableau.Filter(loadOriginFilter)).Check("./testdata3/", format.CSV,
+				check.BreakFailedCount(10), check.WithErrorFormat(ef),
+				check.WithLoadOptions(load.MaxErrorsPerSheet(5)))
+			serr := structuredError(t, err)
+			counts := map[string]int{}
+			for _, detail := range serr.Details {
+				assert.Contains(t, detail.Message, "load failed:")
+				assert.NotContains(t, detail.Message, "[1] error")
+				require.NotNil(t, detail.Source)
+				require.NotNil(t, detail.Source.Cell)
+				assert.NotEmpty(t, detail.Source.Cell.Position)
+				counts[detail.Source.Worksheet]++
+			}
+			assert.GreaterOrEqual(t, counts["ItemConf"], 2)
+			assert.GreaterOrEqual(t, counts["ChapterConf"], 2)
+			if name == "json" {
+				assertJSONDetails(t, err, serr)
+			} else {
+				assert.Equal(t, serr.Error(), err.Error())
+			}
+		})
 	}
+}
 
-	t.Run("Failure_TextFormat", func(t *testing.T) {
-		checkErr, errStr := runFail(t, check.ErrorFormatText)
-
-		// One issue per allow-listed messager (one CSV / sheet each).
-		assert.Len(t, checkErr.Issues, len(loadOriginAllowList),
-			"expected exactly one load issue per allow-listed messager")
-
-		seen := map[string]bool{}
-		for _, issue := range checkErr.Issues {
-			assert.Equal(t, check.IssueKindLoad, issue.Kind)
-			assert.Contains(t, issue.Message, "load failed:")
-			assert.NotEmpty(t, issue.Workbook.GetName())
-			assert.NotEmpty(t, issue.Worksheet.GetName())
-			// Each sheet had >=2 cell-level errors → confgen aggregates them
-			// with [1], [2], ... prefixes inside the wrapped error message.
-			assert.Contains(t, issue.Message, "[1] error",
-				"expected first aggregated sub-error in %q", issue.Worksheet.GetName())
-			assert.Contains(t, issue.Message, "[2] error",
-				"expected second aggregated sub-error in %q", issue.Worksheet.GetName())
-			seen[issue.Worksheet.GetName()] = true
-		}
-		assert.True(t, seen["ItemConf"], "expected an issue for ItemConf")
-		assert.True(t, seen["ChapterConf"], "expected an issue for ChapterConf")
-
-		// Each issue is rendered on its own "error: workbook ..." line in
-		// text format. The aggregated multi-line load error sits inside
-		// the message portion, separated by '\n'.
-		assert.Equal(t, len(checkErr.Issues), strings.Count(errStr, "error: workbook"))
-		assert.Contains(t, errStr, "error: workbook Item#*.csv, worksheet ItemConf, load failed:")
-		assert.Contains(t, errStr, "error: workbook Test#*.csv, worksheet ChapterConf, load failed:")
-
-		t.Logf("\n----- TextFormat output (%d issues) -----\n%s\n----- end -----",
-			len(checkErr.Issues), errStr)
-	})
-
-	t.Run("Failure_JSONFormat", func(t *testing.T) {
-		checkErr, errStr := runFail(t, check.ErrorFormatJSON)
-
-		assert.Len(t, checkErr.Issues, len(loadOriginAllowList))
-
-		// JSON output must remain valid even when issue messages contain
-		// embedded newlines from the aggregated load error: every '\n'
-		// inside a "message" field has to be escaped as "\n".
-		assert.Contains(t, errStr, `"issues"`)
-		assert.Contains(t, errStr, `"kind":"load"`)
-		assert.Contains(t, errStr, `"load failed:`)
-		assert.Contains(t, errStr, `"workbook":`)
-		assert.Contains(t, errStr, `"worksheet":`)
-		// Aggregated sub-error markers (with newlines escaped).
-		assert.Contains(t, errStr, `[1] error`)
-		assert.Contains(t, errStr, `[2] error`)
-		// The top-level JSON object must be a single line: no raw newlines
-		// must leak into the rendered JSON document.
-		assert.NotContains(t, errStr, "\n",
-			"json output must not contain raw newlines")
-
-		t.Logf("\n----- JSONFormat output (%d issues) -----\n%s\n----- end -----",
-			len(checkErr.Issues), errStr)
-	})
+func TestCustomErrorFormat(t *testing.T) {
+	cause := errors.New("unavailable")
+	var formatted *tableauapi.Error
+	err := check.NewHub(tableau.Filter(func(name string) bool { return name == "ChapterConf" })).Check(
+		"unused", format.JSON,
+		check.WithLoadOptions(load.WithLoadFunc(func(_ proto.Message, _ string, _ format.Format, _ *load.MessagerOptions) error { return cause })),
+		check.WithErrorFormat(func(serr *tableauapi.Error) string { formatted = serr; return "custom output" }),
+	)
+	require.ErrorIs(t, err, cause)
+	assert.Equal(t, "custom output", err.Error())
+	assert.Same(t, structuredError(t, err), formatted)
 }

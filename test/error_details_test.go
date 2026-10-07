@@ -30,19 +30,11 @@ func TestLoadShardErrorDetails(t *testing.T) {
 					check.WithLoadOptions(load.MaxErrorsPerSheet(limit)),
 				)
 				require.Error(t, err)
-				var checkErr *check.Error
-				require.ErrorAs(t, err, &checkErr)
-				require.Len(t, checkErr.Issues, 1)
-				issue := checkErr.Issues[0]
-				require.NotNil(t, issue.Details)
-				assert.Equal(t, "Test#*.csv", issue.Workbook.GetName())
-				assert.Equal(t, "ThemeConf", issue.Worksheet.GetName())
+				serr := structuredError(t, err)
+				assert.Same(t, serr, err)
 				assert.NotContains(t, err.Error(), "--- debugging ---")
 				assert.NotContains(t, err.Error(), "goroutine")
-				var native *tableauapi.Error
-				require.ErrorAs(t, err, &native)
-				assert.Equal(t, native.Details, issue.Details)
-				details := issue.Details
+				details := serr.Details
 				if limit == 1 {
 					require.Len(t, details, 1)
 				} else {
@@ -61,40 +53,34 @@ func TestLoadShardErrorDetails(t *testing.T) {
 					assert.Contains(t, []string{"bad-first", "bad-second"}, detail.Source.Cell.Data)
 					assert.Equal(t, "E2012", detail.Code)
 					assert.Equal(t, "confgen", detail.Module)
-					assert.Contains(t, issue.Message, detail.Message)
+					assert.Contains(t, serr.Error(), detail.Message)
 					seen[fmt.Sprintf("%s/%s", book, detail.Source.Cell.Position)] = true
 				}
 				if limit > 1 {
 					assert.Len(t, seen, 4, "each source cell must retain its own error detail")
 				}
 				if lang == "zh" {
-					assert.Contains(t, issue.Message, "(主工作簿: Test#*.csv)")
-					assert.Contains(t, issue.Message, "工作表: ThemeConf")
-					assert.Contains(t, issue.Message, "单元格位置: B4")
+					assert.Contains(t, serr.Error(), "(主工作簿: Test#*.csv)")
+					assert.Contains(t, serr.Error(), "工作表: ThemeConf")
+					assert.Contains(t, serr.Error(), "单元格位置: B4")
 				} else {
-					assert.Contains(t, issue.Message, "(Primary: Test#*.csv)")
-					assert.Contains(t, issue.Message, "Worksheet: ThemeConf")
-					assert.Contains(t, issue.Message, "DataCellPos: B4")
+					assert.Contains(t, serr.Error(), "(Primary: Test#*.csv)")
+					assert.Contains(t, serr.Error(), "Worksheet: ThemeConf")
+					assert.Contains(t, serr.Error(), "DataCellPos: B4")
 				}
 
-				// JSON carries typed details for each source error.
-				var encoded struct {
-					Issues []struct {
-						Details json.RawMessage `json:"details"`
-					} `json:"issues"`
-				}
-				text := check.ErrorFormatJSON(checkErr)
+				// JSON uses the same flat Tableau details as text output.
+				var encoded tableauapi.Error
+				text := check.ErrorFormatJSON(serr)
 				require.NoError(t, json.Unmarshal([]byte(text), &encoded))
-				require.Len(t, encoded.Issues, 1)
-				want, marshalErr := json.Marshal(issue.Details)
+				want, marshalErr := json.Marshal(serr.Details)
 				require.NoError(t, marshalErr)
-				assert.JSONEq(t, string(want), string(encoded.Issues[0].Details))
+				got, marshalErr := json.Marshal(encoded.Details)
+				require.NoError(t, marshalErr)
+				assert.JSONEq(t, string(want), string(got))
 				assert.NotContains(t, text, "\n")
-
-				// Retain the original concrete error through the checker wrapper.
-				var cause *tableauapi.Error
-				require.True(t, errors.As(err, &cause))
-				assert.True(t, errors.Is(err, checkErr.Unwrap()[0]))
+				assert.NotContains(t, text, `"issues"`)
+				assert.True(t, errors.Is(err, serr.Unwrap()))
 			})
 		}
 	}
@@ -110,9 +96,61 @@ func TestLoadPreservesCause(t *testing.T) {
 		})),
 	)
 	require.ErrorIs(t, err, cause)
-	var checkErr *check.Error
-	require.ErrorAs(t, err, &checkErr)
-	require.Len(t, checkErr.Issues, 1)
-	assert.Nil(t, checkErr.Issues[0].Details)
-	assert.Equal(t, "load failed: load config: custom loader unavailable", checkErr.Issues[0].Message)
+	serr := structuredError(t, err)
+	require.Len(t, serr.Details, 1)
+	assert.Equal(t, "load failed: load config: custom loader unavailable", serr.Details[0].Message)
+	assert.Equal(t, "Test#*.csv", serr.Details[0].Source.Workbook)
+	assert.Equal(t, "ChapterConf", serr.Details[0].Source.Worksheet)
+}
+
+func TestMixedFailuresPreserveCausesAndInput(t *testing.T) {
+	original := &tableauapi.Error{Details: []*tableauapi.ErrorDetail{{
+		Code: "E2012", Description: "invalid syntax of numerical value", Message: "invalid number", Module: "confgen",
+		Source: &tableauapi.SourceLocation{Workbook: "Shard#*.csv", Worksheet: "ShardSheet", PrimaryWorkbook: "Main#*.csv"},
+	}}}
+	plain := errors.New("custom loader unavailable")
+	err := check.NewHub(tableau.Filter(func(name string) bool { return name == "ChapterConf" })).Check(
+		"unused", format.JSON,
+		check.WithLoadOptions(load.WithLoadFunc(func(proto.Message, string, format.Format, *load.MessagerOptions) error {
+			return errors.Join(original, plain)
+		})),
+	)
+	serr := structuredError(t, err)
+	require.Len(t, serr.Details, 2)
+	require.ErrorIs(t, err, original)
+	require.ErrorIs(t, err, plain)
+	assert.Equal(t, "load failed: invalid number", serr.Details[0].Message)
+	assert.Equal(t, "Shard#*.csv", serr.Details[0].Source.Workbook)
+	assert.Equal(t, "Main#*.csv", serr.Details[0].Source.PrimaryWorkbook)
+	assert.Equal(t, "load failed: custom loader unavailable", serr.Details[1].Message)
+	assert.Equal(t, "Test#*.csv", serr.Details[1].Source.Workbook)
+	assert.Equal(t, "invalid number", original.Details[0].Message)
+	assert.Equal(t, "Shard#*.csv", original.Details[0].Source.Workbook)
+}
+
+func TestCustomErrorsLocalized(t *testing.T) {
+	for _, lang := range []string{"en", "zh"} {
+		t.Run(lang, func(t *testing.T) {
+			require.NoError(t, tableauapi.SetLang(lang))
+			t.Cleanup(func() { require.NoError(t, tableauapi.SetLang("en")) })
+			err := check.NewHub(tableau.Filter(func(name string) bool { return name == "ChapterConf" })).Check(
+				"unused", format.JSON,
+				check.WithLoadOptions(load.WithLoadFunc(func(proto.Message, string, format.Format, *load.MessagerOptions) error {
+					return errors.New("unavailable")
+				})),
+			)
+			serr := structuredError(t, err)
+			require.Len(t, serr.Details, 1)
+			if lang == "zh" {
+				assert.Contains(t, err.Error(), "工作簿: Test#*.csv")
+				assert.Contains(t, err.Error(), "工作表: ChapterConf")
+				assert.Contains(t, err.Error(), "错误原因: load failed: unavailable")
+			} else {
+				assert.Contains(t, err.Error(), "Workbook: Test#*.csv")
+				assert.Contains(t, err.Error(), "Worksheet: ChapterConf")
+				assert.Contains(t, err.Error(), "Reason: load failed: unavailable")
+			}
+			assert.NotContains(t, err.Error(), "error[]")
+		})
+	}
 }

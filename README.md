@@ -82,16 +82,18 @@ Common options:
 
 ## Structured errors
 
-`Issue.Details` exposes Tableau's typed `ErrorDetail` values, including code,
-reason, help, and source locations. Each detail retains its actual workbook,
-primary workbook, worksheet, and cell position and data. Text output uses
-Tableau's shared localized renderer, matching `tableauc`.
+`Check` and `CheckCompatibility` return Tableau's `*tableau.Error` directly by
+default. Obtain it with `errors.As` and inspect its flat `Details` list. Native
+load failures and ordinary custom errors use the same typed `ErrorDetail` model;
+each detail contains a message and its workbook, worksheet, and cell context.
+Checker adds missing schema locations while preserving actual shard locations
+and original causes. Messages identify load, custom-check, or compatibility
+failures. Failure limits count failed messagers, independently of detail count.
 
-Checker calls `tableau.Normalize` once when creating each issue. JSON uses a
-flat `details` array for single and multiple errors, while schema options remain
-in the issue's workbook and worksheet. Use `errors.As` on the checker error to
-obtain `*tableau.Error`. Original causes remain accessible through `errors.Is`
-and `errors.As`; plain Go errors retain their existing output.
+Text uses Tableau's localized renderer. `WithErrorFormat(ErrorFormatJSON)`
+emits the same flat `{ "details": [...] }` structure. Custom `ErrorFormat`
+functions receive `*tableau.Error`; the presentation wrapper keeps that error
+and original causes reachable through `errors.As` and `errors.Is`.
 
 ## Layout
 

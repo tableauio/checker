@@ -7,120 +7,46 @@ package check
 
 import (
 	"encoding/json"
-	"fmt"
-	"strings"
+	"errors"
 
 	tableauapi "github.com/tableauio/tableau"
 	"github.com/tableauio/tableau/log"
-	"github.com/tableauio/tableau/proto/tableaupb"
-	"google.golang.org/protobuf/encoding/protojson"
 )
 
-// IssueKind is the kind of a check issue.
-type IssueKind string
+// ErrorFormat formats Tableau's structured errors for display.
+type ErrorFormat func(*tableauapi.Error) string
 
-const (
-	IssueKindLoad          IssueKind = "load"
-	IssueKindCheck         IssueKind = "check"
-	IssueKindCompatibility IssueKind = "compatibility"
-)
-
-// Issue represents a single structured check error.
-type Issue struct {
-	Kind      IssueKind                   `json:"kind"`
-	Message   string                      `json:"message"`
-	Workbook  *tableaupb.WorkbookOptions  `json:"workbook,omitempty"`
-	Worksheet *tableaupb.WorksheetOptions `json:"worksheet,omitempty"`
-
-	// Details contains Tableau's typed error details. Workbook/Worksheet
-	// describe the schema; each detail identifies its actual source.
-	Details []*tableauapi.ErrorDetail `json:"details,omitempty"`
-	cause   error
+// ErrorFormatText uses Tableau's localized text renderer.
+var ErrorFormatText ErrorFormat = func(serr *tableauapi.Error) string {
+	return serr.Error()
 }
 
-// String returns the issue as a human-readable string.
-func (i *Issue) String() string {
-	return fmt.Sprintf("error: workbook %s, worksheet %s, %s",
-		i.Workbook.GetName(),
-		i.Worksheet.GetName(),
-		i.Message)
-}
-
-// MarshalJSON uses protojson for Workbook/Worksheet fields to emit correct proto field names.
-func (i *Issue) MarshalJSON() ([]byte, error) {
-	marshaler := protojson.MarshalOptions{}
-	out := struct {
-		Kind      IssueKind                 `json:"kind"`
-		Message   string                    `json:"message"`
-		Workbook  json.RawMessage           `json:"workbook,omitempty"`
-		Worksheet json.RawMessage           `json:"worksheet,omitempty"`
-		Details   []*tableauapi.ErrorDetail `json:"details,omitempty"`
-	}{
-		Kind:    i.Kind,
-		Message: i.Message,
-		Details: i.Details,
-	}
-	if i.Workbook != nil {
-		b, err := marshaler.Marshal(i.Workbook)
-		if err != nil {
-			return nil, err
-		}
-		out.Workbook = json.RawMessage(b)
-	}
-	if i.Worksheet != nil {
-		b, err := marshaler.Marshal(i.Worksheet)
-		if err != nil {
-			return nil, err
-		}
-		out.Worksheet = json.RawMessage(b)
-	}
-	return json.Marshal(out)
-}
-
-// ErrorFormat is a function type that formats an Error into a string.
-type ErrorFormat func(*Error) string
-
-// ErrorFormatText formats issues as human-readable text lines (default).
-var ErrorFormatText ErrorFormat = func(e *Error) string {
-	msgs := make([]string, len(e.Issues))
-	for i, issue := range e.Issues {
-		msgs[i] = issue.String()
-	}
-	return strings.Join(msgs, "\n")
-}
-
-// ErrorFormatJSON formats the Error as a JSON object.
-var ErrorFormatJSON ErrorFormat = func(e *Error) string {
-	b, err := json.Marshal(e)
+// ErrorFormatJSON serializes Tableau's flat error details.
+var ErrorFormatJSON ErrorFormat = func(serr *tableauapi.Error) string {
+	b, err := json.Marshal(serr)
 	if err != nil {
-		log.Errorf("failed to marshal Error to JSON: %+v", err)
+		log.Errorf("failed to marshal error to JSON: %+v", err)
 		return ""
 	}
 	return string(b)
 }
 
-// Error is the error type returned by Check and CheckCompatibility.
-type Error struct {
-	Issues []*Issue `json:"issues"`
+// formattedError changes presentation while keeping the Tableau error reachable.
+type formattedError struct {
+	cause  *tableauapi.Error
 	format ErrorFormat
 }
 
-// Unwrap preserves the original error chains for errors.Is and errors.As.
-func (e *Error) Unwrap() []error {
-	var causes []error
-	for _, issue := range e.Issues {
-		if issue.cause != nil {
-			causes = append(causes, issue.cause)
-		}
-	}
-	return causes
-}
+func (e *formattedError) Error() string { return e.format(e.cause) }
+func (e *formattedError) Unwrap() error { return e.cause }
 
-// Error formats the result using the configured ErrorFormat.
-// Falls back to ErrorFormatText if format is nil.
-func (e *Error) Error() string {
-	if e.format == nil {
-		return ErrorFormatText(e)
+func newError(failures []error, format ErrorFormat) error {
+	serr := tableauapi.Inspect(errors.Join(failures...))
+	if serr == nil {
+		return nil
 	}
-	return e.format(e)
+	if format == nil {
+		return serr
+	}
+	return &formattedError{cause: serr, format: format}
 }
