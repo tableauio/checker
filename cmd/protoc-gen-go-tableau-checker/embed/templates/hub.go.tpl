@@ -109,19 +109,22 @@ func (h *Hub) load(loadType, dir string, f format.Format, options ...load.Option
 	}
 	wg.Wait()
 
+	loadedMessagers := make(tableau.MessagerMap, len(names))
 	failures := make([]error, 0, len(names))
 	for i, err := range loadErrors {
 		if err != nil {
-			delete(messagerMap, names[i])
 			failures = append(failures, err)
+			continue
 		}
+		name := names[i]
+		loadedMessagers[name] = messagerMap[name]
 	}
-	h.SetMessagerMap(messagerMap)
+	h.SetMessagerMap(loadedMessagers)
 	// Align with tableau.Hub.Load: after all messagers are loaded, run
 	// ProcessAfterLoadAll so derived messagers (e.g. custom conf indexes) can build.
 	if len(failures) == 0 {
 		for _, name := range names {
-			msger := messagerMap[name]
+			msger := loadedMessagers[name]
 			if err := msger.ProcessAfterLoadAll(h.Hub); err != nil {
 				failures = append(failures, newFailure("process after load all failed", msger, err))
 				log.Infof("--- FAIL: %v%v ProcessAfterLoadAll", name, loadType)

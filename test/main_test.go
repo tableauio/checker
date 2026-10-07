@@ -15,10 +15,12 @@ import (
 )
 
 func TestLoad(t *testing.T) {
-	err := check.NewHub().Check("./non-existent-dir/", format.JSON,
+	hub := check.NewHub(tableau.Filter(loadOriginFilter))
+	err := hub.Check("./non-existent-dir/", format.JSON,
 		check.BreakFailedCount(10),
 		check.WithLoadOptions(load.IgnoreUnknownFields()))
 	require.Error(t, err)
+	assert.Empty(t, hub.GetMessagerMap(), "failed loads must not be published")
 	serr := tableauapi.Inspect(err)
 	require.NotEmpty(t, serr.Details)
 	assert.Contains(t, serr.Error(), "Workbook:")
