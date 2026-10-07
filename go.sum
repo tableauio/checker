@@ -49,8 +49,8 @@ github.com/subchen/go-xmldom v1.1.2 h1:7evI2YqfYYOnuj+PBwyaOZZYjl3iWq35P6KfBUw9j
 github.com/subchen/go-xmldom v1.1.2/go.mod h1:6Pg/HuX5/T4Jlj0IPJF1sRxKVoI/rrKP6LIMge9d5/8=
 github.com/tableauio/loader v0.6.0 h1:ucuVdudEZ4VDY+WnKOl3Ijr1nlZxA9A+FTO2yNPMI78=
 github.com/tableauio/loader v0.6.0/go.mod h1:YysNxVrAlfpgBRjXpsCgoceKXYDOyLphtOP8Tr+gZFY=
-github.com/tableauio/tableau v0.16.4-0.20261007081727-cf7c3cc14337 h1:vdwtx3zjvDcrKk2wUJrMVOqRWDqjukqTi7N8061O6Ls=
-github.com/tableauio/tableau v0.16.4-0.20261007081727-cf7c3cc14337/go.mod h1:i8Emi+NECspHmld3Ug/rsYfsN7SdL8bbABQ+lpJd+uc=
+github.com/tableauio/tableau v0.16.4-0.20261007082317-cb8023c15235 h1:DUGfZtoOZLqohDSEElEKEcjz1AFmPFjF0hj4sKd6tGY=
+github.com/tableauio/tableau v0.16.4-0.20261007082317-cb8023c15235/go.mod h1:i8Emi+NECspHmld3Ug/rsYfsN7SdL8bbABQ+lpJd+uc=
 github.com/tiendc/go-deepcopy v1.7.2 h1:Ut2yYR7W9tWjTQitganoIue4UGxZwCcJy3orjrrIj44=
 github.com/tiendc/go-deepcopy v1.7.2/go.mod h1:4bKjNC2r7boYOkD2IOuZpYjmlDdzjbpTRyCx+goBCJQ=
 github.com/xuri/efp v0.0.1 h1:fws5Rv3myXyYni8uwj2qKjVaRP30PdjeYe2Y6FDsCL8=
