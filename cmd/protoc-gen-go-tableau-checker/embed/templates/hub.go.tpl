@@ -82,6 +82,7 @@ func (h *Hub) load(loadType, dir string, f format.Format, options ...load.Option
 	names := slices.Sorted(maps.Keys(messagerMap))
 	loadErrors := make([]*tableauapi.Error, len(names))
 	var wg sync.WaitGroup
+	var resultMu sync.Mutex
 	for i, name := range names {
 		msger := messagerMap[name]
 		if gen, ok := getRegistrar().Generators[name]; ok {
@@ -93,12 +94,14 @@ func (h *Hub) load(loadType, dir string, f format.Format, options ...load.Option
 		wg.Add(1)
 		go func() {
 			defer wg.Done()
-			// Each worker writes only to its own error slot.
 			log.Infof("=== LOAD  %v%v", name, loadType)
 			mopts := opts.ParseMessagerOptionsByName(name)
 			if err := msger.Load(dir, f, mopts); err != nil {
 				log.Infof("--- FAIL: %v%v", name, loadType)
-				loadErrors[i] = newFailure("load" + loadType + " failed", msger, err)
+				failure := newFailure("load" + loadType + " failed", msger, err)
+				resultMu.Lock()
+				loadErrors[i] = failure
+				resultMu.Unlock()
 				return
 			}
 			log.Infof("--- DONE: %v%v", name, loadType)
