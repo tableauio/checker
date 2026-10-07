@@ -103,6 +103,19 @@ if err := hub.Check(dir, format.JSON); err != nil {
 }
 ```
 
+Inspect the complete `Check` or `CheckCompatibility` result once at the reporting
+boundary. Printing the raw joined error includes checker operation wrappers and
+can restart numbering inside each load failure. Inspecting it produces Tableau's
+flat, consistently numbered output, including reference and source metadata.
+
+For a CLI that returns an error for its framework to print:
+
+```go
+if err := hub.Check(dir, format.CSV); err != nil {
+    return fmt.Errorf("check failed, see errors below:\n%w", tableau.Inspect(err))
+}
+```
+
 ## Layout
 
 | Path                                 | Role                                                     |

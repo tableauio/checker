@@ -256,3 +256,55 @@ Help: fill cell data with valid syntax of numerical type "uint64"
 		})
 	}
 }
+
+// TestLoadErrorText verifies one rendering flattens failures from separate loads.
+func TestLoadErrorText(t *testing.T) {
+	require.NoError(t, tableauapi.SetLang("en"))
+	dir := t.TempDir()
+	for name, content := range map[string]string{
+		"Test#ChapterConf.csv": "ID,Name\nuint64,string\nChapter ID,Chapter Name\nbad-first,first\nbad-second,second\n",
+		"Test#ThemeConf.csv":   "Name,Value\nstring,uint64\nName,Value\ntheme,bad-theme\n",
+		"Merge1#ThemeConf.csv": "Name,Value\nstring,uint64\nName,Value\nmerge1,1\n",
+		"Merge2#ThemeConf.csv": "Name,Value\nstring,uint64\nName,Value\nmerge2,2\n",
+	} {
+		require.NoError(t, os.WriteFile(filepath.Join(dir, name), []byte(content), 0o600))
+	}
+	err := check.NewHub(tableau.Filter(func(name string) bool {
+		return name == "ChapterConf" || name == "ThemeConf"
+	})).Check(dir, format.CSV, check.WithLoadOptions(load.MaxErrorsPerSheet(5)))
+	require.Error(t, err)
+	serr := tableauapi.Inspect(err)
+	require.Len(t, serr.Details, 3)
+	const chapterFirst = `error[E2012]: invalid syntax of numerical value
+Workbook: Test#*.csv
+Worksheet: ChapterConf
+DataCellPos: A4
+DataCell: bad-first
+Reason: "bad-first" cannot be parsed to numerical type "uint64", strconv.ParseUint: parsing "bad-first": invalid syntax
+Help: fill cell data with valid syntax of numerical type "uint64"
+`
+	const chapterSecond = `error[E2012]: invalid syntax of numerical value
+Workbook: Test#*.csv
+Worksheet: ChapterConf
+DataCellPos: A5
+DataCell: bad-second
+Reason: "bad-second" cannot be parsed to numerical type "uint64", strconv.ParseUint: parsing "bad-second": invalid syntax
+Help: fill cell data with valid syntax of numerical type "uint64"
+`
+	const theme = `error[E2012]: invalid syntax of numerical value
+Workbook: Test#*.csv
+Worksheet: ThemeConf
+DataCellPos: B4
+DataCell: bad-theme
+Reason: "bad-theme" cannot be parsed to numerical type "uint64", strconv.ParseUint: parsing "bad-theme": invalid syntax
+Help: fill cell data with valid syntax of numerical type "uint64"
+`
+	// Workers may finish in either order; numbering spans the complete result.
+	wantText := "[1] " + chapterFirst + "\n[2] " + chapterSecond + "\n[3] " + theme
+	if serr.Details[0].Source.Worksheet == "ThemeConf" {
+		wantText = "[1] " + theme + "\n[2] " + chapterFirst + "\n[3] " + chapterSecond
+	}
+	assert.Equal(t, wantText, fmt.Sprint(serr))
+	assert.Equal(t, "check failed, see errors below:\n"+wantText,
+		fmt.Errorf("check failed, see errors below:\n%w", serr).Error())
+}
