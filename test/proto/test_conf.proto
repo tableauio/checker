@@ -65,7 +65,6 @@ message ChapterConf {
 message ThemeConf {
   option (tableau.worksheet) = {
     name: "ThemeConf"
-    sep: ";"
     merger: "Merge1*.csv#*"
     merger: "Merge2*.csv#*"
     merger: "Test*.csv#ThemeSub*"
@@ -75,11 +74,5 @@ message ThemeConf {
     string name = 2 [(tableau.field) = { name: "Name"}];
     uint64 value = 1 [(tableau.field) = { name: "Value"}];
     uint32 item_id = 3 [(tableau.field) = { name: "ItemID" prop: { refer: "ItemConf.ID" optional: true } }];
-    FightTypeFilter fight_type_filter = 4 [(tableau.field) = { name: "FightTypeFilter" span: SPAN_INNER_CELL prop: { optional: true } }];
   }
-}
-
-message FightTypeFilter {
-  string mode = 1 [(tableau.field) = { name: "Mode" }];
-  string category = 2 [(tableau.field) = { name: "Category" }];
 }
