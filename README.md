@@ -88,7 +88,9 @@ Call `tableau.Inspect(err)` when reporting an error to obtain its
 flat `Details` list. Tableau load errors already contain their source metadata,
 including actual and primary workbooks, worksheets, and failing cells. Checker
 preserves those details and adds operation context through ordinary Go error
-wrapping. Plain custom errors retain their messages without added schema metadata.
+wrapping. Custom check, compatibility, and post-load failures also carry the
+workbook and worksheet declared by their protobuf schema. Existing source details
+take precedence; custom messagers without a protobuf source retain plain errors.
 Failure limits count failed messagers, independently of detail count.
 
 Print the inspected error for Tableau's localized text, or marshal it for the

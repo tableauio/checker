@@ -14,9 +14,12 @@ import (
 	"slices"
 	"sync"
 
+	tableauapi "github.com/tableauio/tableau"
 	"github.com/tableauio/tableau/format"
 	"github.com/tableauio/tableau/load"
 	"github.com/tableauio/tableau/log"
+	"github.com/tableauio/tableau/proto/tableaupb"
+	"google.golang.org/protobuf/proto"
 )
 
 type checker interface {
@@ -123,12 +126,24 @@ func (h *Hub) load(loadType, dir string, f format.Format, options ...load.Option
 		for _, name := range names {
 			msger := loadedMessagers[name]
 			if err := msger.ProcessAfterLoadAll(h.Hub); err != nil {
-				failures = append(failures, fmt.Errorf("process %s after load all failed: %w", name, err))
+				failures = append(failures, sourceLocation(msger).Wrap(fmt.Errorf("process %s after load all failed: %w", name, err)))
 				log.Infof("--- FAIL: %v%v ProcessAfterLoadAll", name, loadType)
 			}
 		}
 	}
 	return checkers, failures
+}
+
+// sourceLocation identifies the schema source of a messager's custom checks.
+func sourceLocation(msger tableau.Messager) *tableauapi.SourceLocation {
+	msg := msger.Message()
+	if msg == nil {
+		return nil
+	}
+	desc := msg.ProtoReflect().Descriptor()
+	workbook, _ := proto.GetExtension(desc.ParentFile().Options(), tableaupb.E_Workbook).(*tableaupb.WorkbookOptions)
+	worksheet, _ := proto.GetExtension(desc.Options(), tableaupb.E_Worksheet).(*tableaupb.WorksheetOptions)
+	return &tableauapi.SourceLocation{Workbook: workbook.GetName(), Worksheet: worksheet.GetName()}
 }
 
 func (h *Hub) check(breakFailedCount int) []error {
@@ -138,7 +153,7 @@ func (h *Hub) check(breakFailedCount int) []error {
 		log.Infof("=== RUN   %v", name)
 		err := checker.Check(h.Hub)
 		if err != nil {
-			failure := fmt.Errorf("check %s failed: %w", name, err)
+			failure := sourceLocation(checker).Wrap(fmt.Errorf("check %s failed: %w", name, err))
 			log.Errorf("--- FAIL: %v", failure)
 			failures = append(failures, failure)
 		} else {
@@ -162,7 +177,7 @@ func (h *Hub) checkCompatibility(newHub *tableau.Hub, breakFailedCount int) []er
 		log.Infof("=== RUN   %v", name)
 		err := checker.CheckCompatibility(h.Hub, newHub)
 		if err != nil {
-			failure := fmt.Errorf("check compatibility of %s failed: %w", name, err)
+			failure := sourceLocation(checker).Wrap(fmt.Errorf("check compatibility of %s failed: %w", name, err))
 			log.Errorf("--- FAIL: %v", failure)
 			failures = append(failures, failure)
 		} else {

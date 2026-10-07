@@ -32,19 +32,32 @@ func TestLoad(t *testing.T) {
 }
 
 func TestCheck(t *testing.T) {
-	err := check.NewHub().Check("./testdata/", format.JSON,
-		check.BreakFailedCount(1),
-		check.WithLoadOptions(load.IgnoreUnknownFields()))
-	require.Error(t, err)
-	serr := tableauapi.Inspect(err)
-	require.Len(t, serr.Details, 1)
-	detail := serr.Details[0]
-	assert.Equal(t, "check ActivityConf failed: awardId: 0 not found", detail.Message)
-	assert.Nil(t, detail.Source)
-	assert.Equal(t, detail.Message, serr.Error())
-	data, marshalErr := json.Marshal(serr)
-	require.NoError(t, marshalErr)
-	assert.JSONEq(t, `{"details":[{"message":"check ActivityConf failed: awardId: 0 not found"}]}`, string(data))
+	for _, tt := range []struct {
+		lang, wantText string
+	}{
+		{"en", "Workbook: Test#*.csv\nWorksheet: Activity\nReason: check ActivityConf failed: awardId: 0 not found\n"},
+		{"zh", "工作簿: Test#*.csv\n工作表: Activity\n错误原因: check ActivityConf failed: awardId: 0 not found\n"},
+	} {
+		t.Run(tt.lang, func(t *testing.T) {
+			require.NoError(t, tableauapi.SetLang(tt.lang))
+			t.Cleanup(func() { require.NoError(t, tableauapi.SetLang("en")) })
+			err := check.NewHub().Check("./testdata/", format.JSON,
+				check.BreakFailedCount(1),
+				check.WithLoadOptions(load.IgnoreUnknownFields()))
+			require.Error(t, err)
+			serr := tableauapi.Inspect(err)
+			require.Len(t, serr.Details, 1)
+			detail := serr.Details[0]
+			assert.Equal(t, "check ActivityConf failed: awardId: 0 not found", detail.Message)
+			require.NotNil(t, detail.Source)
+			assert.Equal(t, "Test#*.csv", detail.Source.Workbook)
+			assert.Equal(t, "Activity", detail.Source.Worksheet)
+			assert.Equal(t, tt.wantText, serr.Error())
+			data, marshalErr := json.Marshal(serr)
+			require.NoError(t, marshalErr)
+			assert.JSONEq(t, `{"details":[{"message":"check ActivityConf failed: awardId: 0 not found","source":{"workbook":"Test#*.csv","worksheet":"Activity"}}]}`, string(data))
+		})
+	}
 }
 
 func TestCheckCompatibility(t *testing.T) {
