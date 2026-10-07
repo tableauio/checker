@@ -87,10 +87,11 @@ reason, help, and source locations. Each detail retains its actual workbook,
 primary workbook, worksheet, and cell position and data. Text output uses
 Tableau's shared localized renderer, matching `tableauc`.
 
-JSON uses a flat `details` array for single and multiple errors. Schema options
-remain in the issue's workbook and worksheet. Use `errors.As` to obtain the native
-`*tableau.Error`. Original causes remain accessible through `errors.Is` and
-`errors.As`; plain Go errors retain their existing output.
+Checker calls `tableau.Normalize` once when creating each issue. JSON uses a
+flat `details` array for single and multiple errors, while schema options remain
+in the issue's workbook and worksheet. Use `errors.As` on the checker error to
+obtain `*tableau.Error`. Original causes remain accessible through `errors.Is`
+and `errors.As`; plain Go errors retain their existing output.
 
 ## Layout
 

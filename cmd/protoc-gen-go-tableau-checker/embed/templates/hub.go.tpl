@@ -139,8 +139,9 @@ func (h *Hub) load(loadType, dir string, f format.Format, options ...load.Option
 	return checkers, issues
 }
 
-// newIssue retains native structured details and the original error cause.
+// newIssue normalizes failures once and retains structured details and original causes.
 func newIssue(kind IssueKind, prefix string, msger tableau.Messager, err error) *Issue {
+	err = tableauapi.Normalize(err)
 	workbook, worksheet := getBookAndSheet(msger)
 	issue := &Issue{
 		Kind:      kind,
@@ -149,9 +150,9 @@ func newIssue(kind IssueKind, prefix string, msger tableau.Messager, err error) 
 		Worksheet: worksheet,
 		cause:     err,
 	}
-	var tableauErr *tableauapi.Error
-	if errors.As(err, &tableauErr) {
-		issue.Details = tableauErr.Details
+	var serr *tableauapi.Error
+	if errors.As(err, &serr) {
+		issue.Details = serr.Details
 	}
 	return issue
 }
