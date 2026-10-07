@@ -86,16 +86,16 @@ func (h *Hub) load(loadType, dir string, f format.Format, options ...load.Option
 	checkers := make(map[string]checker)
 
 	names := slices.Sorted(maps.Keys(messagerMap))
-	loadErrors := make([]*tableauapi.Error, len(names))
+	loadedMessagers := make(tableau.MessagerMap, len(names))
+	failures := make([]error, 0, len(names))
 	var wg sync.WaitGroup
 	var resultMu sync.Mutex
-	for i, name := range names {
+	for _, name := range names {
 		msger := messagerMap[name]
 		if gen, ok := getRegistrar().Generators[name]; ok {
 			c := gen()
 			checkers[name] = c
 			msger = c.Messager()
-			messagerMap[name] = msger
 		}
 		wg.Add(1)
 		go func() {
@@ -106,25 +106,18 @@ func (h *Hub) load(loadType, dir string, f format.Format, options ...load.Option
 				log.Infof("--- FAIL: %v%v", name, loadType)
 				failure := newFailure("load"+loadType+" failed", msger, err)
 				resultMu.Lock()
-				loadErrors[i] = failure
+				failures = append(failures, failure)
 				resultMu.Unlock()
 				return
 			}
 			log.Infof("--- DONE: %v%v", name, loadType)
+			resultMu.Lock()
+			loadedMessagers[name] = msger
+			resultMu.Unlock()
 		}()
 	}
 	wg.Wait()
 
-	loadedMessagers := make(tableau.MessagerMap, len(names))
-	failures := make([]error, 0, len(names))
-	for i, err := range loadErrors {
-		if err != nil {
-			failures = append(failures, err)
-			continue
-		}
-		name := names[i]
-		loadedMessagers[name] = messagerMap[name]
-	}
 	h.SetMessagerMap(loadedMessagers)
 	// Align with tableau.Hub.Load: after all messagers are loaded, run
 	// ProcessAfterLoadAll so derived messagers (e.g. custom conf indexes) can build.
