@@ -123,6 +123,27 @@ func TestLoadKeepsSuccessfulMessagers(t *testing.T) {
 	assert.Equal(t, "ItemConf", serr.Details[0].Source.Worksheet)
 }
 
+func TestStructuredFailurePreservesInput(t *testing.T) {
+	original := &tableauapi.Error{Details: []*tableauapi.ErrorDetail{{
+		Message: "invalid number",
+		Source:  &tableauapi.SourceLocation{Workbook: "Shard#*.csv"},
+	}}}
+	err := check.NewHub(tableau.Filter(func(name string) bool { return name == "ChapterConf" })).Check(
+		"unused", format.JSON,
+		check.WithLoadOptions(load.WithLoadFunc(func(proto.Message, string, format.Format, *load.MessagerOptions) error {
+			return original
+		})),
+	)
+	require.ErrorIs(t, err, original)
+	serr := tableauapi.Inspect(err)
+	require.Len(t, serr.Details, 1)
+	assert.Equal(t, "load failed: invalid number", serr.Details[0].Message)
+	assert.Equal(t, "Shard#*.csv", serr.Details[0].Source.Workbook)
+	assert.Equal(t, "ChapterConf", serr.Details[0].Source.Worksheet)
+	assert.Equal(t, "invalid number", original.Details[0].Message)
+	assert.Empty(t, original.Details[0].Source.Worksheet)
+}
+
 func TestMixedFailuresPreserveCausesAndInput(t *testing.T) {
 	original := &tableauapi.Error{Details: []*tableauapi.ErrorDetail{{
 		Code: "E2012", Description: "invalid syntax of numerical value", Message: "invalid number", Module: "confgen",

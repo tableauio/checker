@@ -129,8 +129,7 @@ func (h *Hub) load(loadType, dir string, f format.Format, options ...load.Option
 
 // newFailure adds checker context to an independent view of the original error.
 func newFailure(prefix string, msger tableau.Messager, err error) *tableauapi.Error {
-	// Joining creates a fresh view even when err is already a *tableau.Error.
-	serr := tableauapi.Inspect(errors.Join(err))
+	serr := tableauapi.Inspect(err)
 	workbook, worksheet := getBookAndSheet(msger)
 	for _, detail := range serr.Details {
 		detail.Message = prefix + ": " + detail.Message
