@@ -9,16 +9,14 @@ import (
 	tableau "github.com/tableauio/checker/test/protoconf/tableau"
 
 	"errors"
+	"fmt"
 	"maps"
 	"slices"
 	"sync"
 
-	tableauapi "github.com/tableauio/tableau"
 	"github.com/tableauio/tableau/format"
 	"github.com/tableauio/tableau/load"
 	"github.com/tableauio/tableau/log"
-	"github.com/tableauio/tableau/proto/tableaupb"
-	"google.golang.org/protobuf/proto"
 )
 
 type checker interface {
@@ -104,7 +102,7 @@ func (h *Hub) load(loadType, dir string, f format.Format, options ...load.Option
 			mopts := opts.ParseMessagerOptionsByName(name)
 			if err := msger.Load(dir, f, mopts); err != nil {
 				log.Infof("--- FAIL: %v%v", name, loadType)
-				failure := newFailure("load"+loadType+" failed", msger, err)
+				failure := fmt.Errorf("load%s %s failed: %w", loadType, name, err)
 				resultMu.Lock()
 				failures = append(failures, failure)
 				resultMu.Unlock()
@@ -125,52 +123,12 @@ func (h *Hub) load(loadType, dir string, f format.Format, options ...load.Option
 		for _, name := range names {
 			msger := loadedMessagers[name]
 			if err := msger.ProcessAfterLoadAll(h.Hub); err != nil {
-				failures = append(failures, newFailure("process after load all failed", msger, err))
+				failures = append(failures, fmt.Errorf("process %s after load all failed: %w", name, err))
 				log.Infof("--- FAIL: %v%v ProcessAfterLoadAll", name, loadType)
 			}
 		}
 	}
 	return checkers, failures
-}
-
-// newFailure adds checker context to an independent view of the original error.
-func newFailure(prefix string, msger tableau.Messager, err error) *tableauapi.Error {
-	serr := tableauapi.Inspect(err)
-	workbook, worksheet := getBookAndSheet(msger)
-	for _, detail := range serr.Details {
-		detail.Message = prefix + ": " + detail.Message
-		if detail.Source == nil {
-			if workbook.GetName() == "" && worksheet.GetName() == "" {
-				continue
-			}
-			detail.Source = &tableauapi.SourceLocation{}
-		}
-		if detail.Source.Workbook == "" {
-			detail.Source.Workbook = workbook.GetName()
-		}
-		if detail.Source.Worksheet == "" {
-			detail.Source.Worksheet = worksheet.GetName()
-		}
-	}
-	return serr
-}
-
-// getBookAndSheet resolves workbook/worksheet options from a messager's
-// underlying protobuf message descriptor. Returns nil, nil when the messager
-// has no message data (e.g. custom/derived messagers); missing extensions
-// also yield nil options.
-func getBookAndSheet(msger tableau.Messager) (*tableaupb.WorkbookOptions, *tableaupb.WorksheetOptions) {
-	if msger == nil {
-		return nil, nil
-	}
-	msg := msger.Message()
-	if msg == nil {
-		return nil, nil
-	}
-	md := msg.ProtoReflect().Descriptor()
-	worksheet, _ := proto.GetExtension(md.Options(), tableaupb.E_Worksheet).(*tableaupb.WorksheetOptions)
-	workbook, _ := proto.GetExtension(md.ParentFile().Options(), tableaupb.E_Workbook).(*tableaupb.WorkbookOptions)
-	return workbook, worksheet
 }
 
 func (h *Hub) check(breakFailedCount int) []error {
@@ -180,7 +138,7 @@ func (h *Hub) check(breakFailedCount int) []error {
 		log.Infof("=== RUN   %v", name)
 		err := checker.Check(h.Hub)
 		if err != nil {
-			failure := newFailure("custom check failed", checker, err)
+			failure := fmt.Errorf("check %s failed: %w", name, err)
 			log.Errorf("--- FAIL: %v", failure)
 			failures = append(failures, failure)
 		} else {
@@ -204,7 +162,7 @@ func (h *Hub) checkCompatibility(newHub *tableau.Hub, breakFailedCount int) []er
 		log.Infof("=== RUN   %v", name)
 		err := checker.CheckCompatibility(h.Hub, newHub)
 		if err != nil {
-			failure := newFailure("compatibility check failed", checker, err)
+			failure := fmt.Errorf("check compatibility of %s failed: %w", name, err)
 			log.Errorf("--- FAIL: %v", failure)
 			failures = append(failures, failure)
 		} else {
@@ -258,8 +216,7 @@ type Options struct {
 	//
 	// Default: 1.
 	BreakFailedCount int
-	// Deprecated: ProtoPackage is unused. Workbook/worksheet metadata is
-	// resolved from each messager's protobuf descriptor.
+	// Deprecated: ProtoPackage is unused.
 	//
 	// Default: "protoconf".
 	ProtoPackage string
@@ -290,8 +247,7 @@ func BreakFailedCount(count int) Option {
 	}
 }
 
-// Deprecated: ProtoPackage is unused. Workbook/worksheet metadata is
-// resolved from each messager's protobuf descriptor.
+// Deprecated: ProtoPackage is unused.
 func ProtoPackage(protoPackage string) Option {
 	return func(opts *Options) {
 		opts.ProtoPackage = protoPackage

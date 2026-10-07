@@ -84,12 +84,11 @@ Common options:
 
 `Check` and `CheckCompatibility` return joined error chains on failure and nil
 on success. Call `tableau.Inspect(err)` when reporting an error to obtain its
-flat `Details` list. Native load failures and ordinary custom errors use the
-same typed `ErrorDetail` model, containing a message and its workbook,
-worksheet, and cell context.
-Checker adds missing schema locations while preserving actual shard locations
-and original causes. Messages identify load, custom-check, or compatibility
-failures. Failure limits count failed messagers, independently of detail count.
+flat `Details` list. Tableau load errors already contain their source metadata,
+including actual and primary workbooks, worksheets, and failing cells. Checker
+preserves those details and adds operation context through ordinary Go error
+wrapping. Plain custom errors retain their messages without added schema metadata.
+Failure limits count failed messagers, independently of detail count.
 
 Print the inspected error for Tableau's localized text, or marshal it for the
 flat `{ "details": [...] }` JSON representation. Original causes remain

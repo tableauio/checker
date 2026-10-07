@@ -26,13 +26,11 @@ func Example_check() {
 		check.WithLoadOptions(load.IgnoreUnknownFields()),
 	)
 	if err != nil {
-		fmt.Print(tableauapi.Inspect(err))
+		fmt.Println(tableauapi.Inspect(err))
 	}
 	// Output:
 	// custom item conf processed
-	// Workbook: Test#*.csv
-	// Worksheet: Activity
-	// Reason: custom check failed: awardId: 0 not found
+	// check ActivityConf failed: awardId: 0 not found
 }
 
 // Example_checkCompatibility demonstrates how to compare two snapshots of
@@ -56,11 +54,9 @@ func Example_checkCompatibility() {
 		fmt.Println("compatible")
 		return
 	}
-	fmt.Print(tableauapi.Inspect(err))
+	fmt.Println(tableauapi.Inspect(err))
 	// Output:
-	// Workbook: Test#*.csv
-	// Worksheet: Activity
-	// Reason: compatibility check failed: ItemConf incompatible: 5 item id(s) removed in new version: [2 3 2001 2002 2003]
+	// check compatibility of ActivityConf failed: ItemConf incompatible: 5 item id(s) removed in new version: [2 3 2001 2002 2003]
 }
 
 // Example_customConf shows reading a derived messager after Check. The hub

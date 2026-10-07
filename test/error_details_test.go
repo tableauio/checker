@@ -99,9 +99,8 @@ func TestLoadPreservesCause(t *testing.T) {
 	serr := tableauapi.Inspect(err)
 	require.ErrorIs(t, serr, cause)
 	require.Len(t, serr.Details, 1)
-	assert.Equal(t, "load failed: load config: custom loader unavailable", serr.Details[0].Message)
-	assert.Equal(t, "Test#*.csv", serr.Details[0].Source.Workbook)
-	assert.Equal(t, "ChapterConf", serr.Details[0].Source.Worksheet)
+	assert.Equal(t, "load ChapterConf failed: load config: custom loader unavailable", serr.Details[0].Message)
+	assert.Nil(t, serr.Details[0].Source)
 }
 
 func TestLoadKeepsSuccessfulMessagers(t *testing.T) {
@@ -120,7 +119,7 @@ func TestLoadKeepsSuccessfulMessagers(t *testing.T) {
 	assert.Nil(t, hub.GetMessager("ItemConf"))
 	serr := tableauapi.Inspect(err)
 	require.Len(t, serr.Details, 1)
-	assert.Equal(t, "ItemConf", serr.Details[0].Source.Worksheet)
+	assert.Equal(t, "load ItemConf failed: item config unavailable", serr.Details[0].Message)
 }
 
 func TestStructuredFailurePreservesInput(t *testing.T) {
@@ -137,9 +136,9 @@ func TestStructuredFailurePreservesInput(t *testing.T) {
 	require.ErrorIs(t, err, original)
 	serr := tableauapi.Inspect(err)
 	require.Len(t, serr.Details, 1)
-	assert.Equal(t, "load failed: invalid number", serr.Details[0].Message)
+	assert.Equal(t, "invalid number", serr.Details[0].Message)
 	assert.Equal(t, "Shard#*.csv", serr.Details[0].Source.Workbook)
-	assert.Equal(t, "ChapterConf", serr.Details[0].Source.Worksheet)
+	assert.Empty(t, serr.Details[0].Source.Worksheet)
 	assert.Equal(t, "invalid number", original.Details[0].Message)
 	assert.Empty(t, original.Details[0].Source.Worksheet)
 }
@@ -163,39 +162,11 @@ func TestMixedFailuresPreserveCausesAndInput(t *testing.T) {
 	require.ErrorIs(t, err, plain)
 	require.ErrorIs(t, serr, original)
 	require.ErrorIs(t, serr, plain)
-	assert.Equal(t, "load failed: invalid number", serr.Details[0].Message)
+	assert.Equal(t, "invalid number", serr.Details[0].Message)
 	assert.Equal(t, "Shard#*.csv", serr.Details[0].Source.Workbook)
 	assert.Equal(t, "Main#*.csv", serr.Details[0].Source.PrimaryWorkbook)
-	assert.Equal(t, "load failed: custom loader unavailable", serr.Details[1].Message)
-	assert.Equal(t, "Test#*.csv", serr.Details[1].Source.Workbook)
+	assert.Equal(t, "custom loader unavailable", serr.Details[1].Message)
+	assert.Nil(t, serr.Details[1].Source)
 	assert.Equal(t, "invalid number", original.Details[0].Message)
 	assert.Equal(t, "Shard#*.csv", original.Details[0].Source.Workbook)
-}
-
-func TestCustomErrorsLocalized(t *testing.T) {
-	for _, lang := range []string{"en", "zh"} {
-		t.Run(lang, func(t *testing.T) {
-			require.NoError(t, tableauapi.SetLang(lang))
-			t.Cleanup(func() { require.NoError(t, tableauapi.SetLang("en")) })
-			err := check.NewHub(tableau.Filter(func(name string) bool { return name == "ChapterConf" })).Check(
-				"unused", format.JSON,
-				check.WithLoadOptions(load.WithLoadFunc(func(proto.Message, string, format.Format, *load.MessagerOptions) error {
-					return errors.New("unavailable")
-				})),
-			)
-			require.Error(t, err)
-			serr := tableauapi.Inspect(err)
-			require.Len(t, serr.Details, 1)
-			if lang == "zh" {
-				assert.Contains(t, serr.Error(), "工作簿: Test#*.csv")
-				assert.Contains(t, serr.Error(), "工作表: ChapterConf")
-				assert.Contains(t, serr.Error(), "错误原因: load failed: unavailable")
-			} else {
-				assert.Contains(t, serr.Error(), "Workbook: Test#*.csv")
-				assert.Contains(t, serr.Error(), "Worksheet: ChapterConf")
-				assert.Contains(t, serr.Error(), "Reason: load failed: unavailable")
-			}
-			assert.NotContains(t, serr.Error(), "error[]")
-		})
-	}
 }
