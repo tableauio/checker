@@ -85,56 +85,46 @@ func (h *Hub) load(loadType, dir string, f format.Format, options ...load.Option
 	messagerMap := h.NewMessagerMap()
 	checkers := make(map[string]checker)
 
-	type loadResult struct {
-		name    string
-		msger   tableau.Messager
-		failure error
-	}
-	results := make(chan loadResult, len(messagerMap))
+	names := slices.Sorted(maps.Keys(messagerMap))
+	loadErrors := make([]*tableauapi.Error, len(names))
 	var wg sync.WaitGroup
-	for name, msger := range messagerMap {
+	for i, name := range names {
+		msger := messagerMap[name]
 		if gen, ok := getRegistrar().Generators[name]; ok {
 			c := gen()
 			checkers[name] = c
 			msger = c.Messager()
+			messagerMap[name] = msger
 		}
 		wg.Add(1)
-		go func(name string, msger tableau.Messager) {
+		go func() {
 			defer wg.Done()
+			// Each worker writes only to its own error slot.
 			log.Infof("=== LOAD  %v%v", name, loadType)
 			mopts := opts.ParseMessagerOptionsByName(name)
 			if err := msger.Load(dir, f, mopts); err != nil {
 				log.Infof("--- FAIL: %v%v", name, loadType)
-				results <- loadResult{
-					name:    name,
-					failure: newFailure("load"+loadType+" failed", msger, err),
-				}
+				loadErrors[i] = newFailure("load"+loadType+" failed", msger, err)
 				return
 			}
 			log.Infof("--- DONE: %v%v", name, loadType)
-			results <- loadResult{name: name, msger: msger}
-		}(name, msger)
+		}()
 	}
-	go func() {
-		wg.Wait()
-		close(results)
-	}()
+	wg.Wait()
 
-	msgers := make(tableau.MessagerMap, len(messagerMap))
-	failures := make([]error, 0, len(messagerMap))
-	for r := range results {
-		if r.failure != nil {
-			failures = append(failures, r.failure)
-			continue
+	failures := make([]error, 0, len(names))
+	for i, err := range loadErrors {
+		if err != nil {
+			delete(messagerMap, names[i])
+			failures = append(failures, err)
 		}
-		msgers[r.name] = r.msger
 	}
-	h.SetMessagerMap(msgers)
+	h.SetMessagerMap(messagerMap)
 	// Align with tableau.Hub.Load: after all messagers are loaded, run
 	// ProcessAfterLoadAll so derived messagers (e.g. custom conf indexes) can build.
 	if len(failures) == 0 {
-		for _, name := range slices.Sorted(maps.Keys(msgers)) {
-			msger := msgers[name]
+		for _, name := range names {
+			msger := messagerMap[name]
 			if err := msger.ProcessAfterLoadAll(h.Hub); err != nil {
 				failures = append(failures, newFailure("process after load all failed", msger, err))
 				log.Infof("--- FAIL: %v%v ProcessAfterLoadAll", name, loadType)

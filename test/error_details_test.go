@@ -104,6 +104,25 @@ func TestLoadPreservesCause(t *testing.T) {
 	assert.Equal(t, "ChapterConf", serr.Details[0].Source.Worksheet)
 }
 
+func TestLoadKeepsSuccessfulMessagers(t *testing.T) {
+	cause := errors.New("item config unavailable")
+	hub := check.NewHub(tableau.Filter(loadOriginFilter))
+	err := hub.Check("unused", format.JSON,
+		check.WithLoadOptions(load.WithLoadFunc(func(msg proto.Message, _ string, _ format.Format, _ *load.MessagerOptions) error {
+			if string(msg.ProtoReflect().Descriptor().Name()) == "ItemConf" {
+				return cause
+			}
+			return nil
+		})),
+	)
+	require.ErrorIs(t, err, cause)
+	assert.NotNil(t, hub.GetMessager("ChapterConf"))
+	assert.Nil(t, hub.GetMessager("ItemConf"))
+	serr := tableauapi.Inspect(err)
+	require.Len(t, serr.Details, 1)
+	assert.Equal(t, "ItemConf", serr.Details[0].Source.Worksheet)
+}
+
 func TestMixedFailuresPreserveCausesAndInput(t *testing.T) {
 	original := &tableauapi.Error{Details: []*tableauapi.ErrorDetail{{
 		Code: "E2012", Description: "invalid syntax of numerical value", Message: "invalid number", Module: "confgen",
