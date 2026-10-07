@@ -68,10 +68,12 @@ func TestCustomFailureKeepsPreciseSource(t *testing.T) {
 		name        string
 		err         error
 		wantMessage string
+		wantSource  *tableauapi.SourceLocation
 	}{
 		{
 			name:        "structured error",
 			wantMessage: "invalid value",
+			wantSource:  source,
 			err: &tableauapi.Error{Details: []*tableauapi.ErrorDetail{{
 				Message: "invalid value", Source: source,
 			}}},
@@ -79,9 +81,9 @@ func TestCustomFailureKeepsPreciseSource(t *testing.T) {
 		{
 			name:        "metadata error",
 			wantMessage: "check ActivityConf failed: invalid value",
-			err: tableauapi.NewKV("invalid value",
-				tableauapi.KeyBookName, "Shard.xlsx", tableauapi.KeySheetName, "SubSheet",
-				tableauapi.KeyDataCellPos, "B4", tableauapi.KeyDataCell, "invalid"),
+			wantSource:  &tableauapi.SourceLocation{Workbook: "Shard.xlsx", Worksheet: "SubSheet"},
+			err: tableauapi.WrapKV(errors.New("invalid value"),
+				tableauapi.KeyBookName, "Shard.xlsx", tableauapi.KeySheetName, "SubSheet"),
 		},
 	} {
 		t.Run(tt.name, func(t *testing.T) {
@@ -90,9 +92,9 @@ func TestCustomFailureKeepsPreciseSource(t *testing.T) {
 			serr := tableauapi.Inspect(errors.Join(hub.check(0)...))
 			require.ErrorIs(t, serr, tt.err)
 			require.Len(t, serr.Details, 1)
-			assert.Equal(t, source, serr.Details[0].Source)
+			assert.Equal(t, tt.wantSource, serr.Details[0].Source)
 			assert.Equal(t, tt.wantMessage, serr.Details[0].Message)
-			assert.Equal(t, source, tableauapi.Inspect(tt.err).Details[0].Source)
+			assert.Equal(t, tt.wantSource, tableauapi.Inspect(tt.err).Details[0].Source)
 		})
 	}
 }

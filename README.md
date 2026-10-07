@@ -87,24 +87,23 @@ on success. Import `github.com/tableauio/tableau`.
 Call `tableau.Inspect(err)` when reporting an error to obtain its
 flat `Details` list. Tableau load errors already contain their source metadata,
 including actual and primary workbooks, worksheets, and failing cells. Checker
-preserves those details and adds operation context with `tableau.Wrapf`.
+preserves those details and adds operation context through Go error wrapping.
 Custom check, compatibility, and post-load failures also carry the
 workbook and worksheet declared by their protobuf schema. Existing source details
 take precedence; custom messagers without a protobuf source retain plain errors.
 Failure limits count failed messagers, independently of detail count.
 
-Use `tableau.Newf` to create a custom failure, or `tableau.NewKV` and
-`tableau.WrapKV` to attach source, field, or help metadata. For example:
+Use `errors.New` or `fmt.Errorf` for custom failures. When a failure belongs to
+a more specific workbook or sheet, attach its source with `tableau.WrapKV`:
 
 ```go
-return tableau.NewKV("task has no condition target",
-    tableau.KeyDataCellPos, "L6",
-    tableau.KeyDataCell, taskID,
-    tableau.KeyHelp, "add a condition target for this task")
+return tableau.WrapKV(fmt.Errorf("task %d has no condition target", taskID),
+    tableau.KeyBookName, workbookName,
+    tableau.KeySheetName, sheetName)
 ```
 
-Checker fills in the schema workbook and worksheet. Supply those keys yourself
-when the failure belongs to a more specific workbook or sheet.
+Checker supplies the schema workbook and worksheet when those fields are absent.
+`WrapKV` captures its caller's stack if the error does not already have one.
 
 Print the inspected error for Tableau's localized text, or marshal it for the
 flat `{ "details": [...] }` JSON representation. Original causes remain

@@ -3,6 +3,7 @@ import (
 	tableau {{.LoaderImport}}
 
 	"errors"
+	"fmt"
 	"maps"
 	"slices"
 	"sync"
@@ -98,7 +99,7 @@ func (h *Hub) load(loadType, dir string, f format.Format, options ...load.Option
 			mopts := opts.ParseMessagerOptionsByName(name)
 			if err := msger.Load(dir, f, mopts); err != nil {
 				log.Infof("--- FAIL: %v%v", name, loadType)
-				failure := tableauapi.Wrapf(err, "load%s %s failed", loadType, name)
+				failure := fmt.Errorf("load%s %s failed: %w", loadType, name, err)
 				resultMu.Lock()
 				failures = append(failures, failure)
 				resultMu.Unlock()
@@ -119,7 +120,7 @@ func (h *Hub) load(loadType, dir string, f format.Format, options ...load.Option
 		for _, name := range names {
 			msger := loadedMessagers[name]
 			if err := msger.ProcessAfterLoadAll(h.Hub); err != nil {
-				failures = append(failures, wrapSource(tableauapi.Wrapf(err, "process %s after load all failed", name), msger))
+				failures = append(failures, wrapSource(fmt.Errorf("process %s after load all failed: %w", name, err), msger))
 				log.Infof("--- FAIL: %v%v ProcessAfterLoadAll", name, loadType)
 			}
 		}
@@ -156,7 +157,7 @@ func (h *Hub) check(breakFailedCount int) []error {
 		log.Infof("=== RUN   %v", name)
 		err := checker.Check(h.Hub)
 		if err != nil {
-			failure := wrapSource(tableauapi.Wrapf(err, "check %s failed", name), checker)
+			failure := wrapSource(fmt.Errorf("check %s failed: %w", name, err), checker)
 			log.Errorf("--- FAIL: %v", failure)
 			failures = append(failures, failure)
 		} else {
@@ -180,7 +181,7 @@ func (h *Hub) checkCompatibility(newHub *tableau.Hub, breakFailedCount int) []er
 		log.Infof("=== RUN   %v", name)
 		err := checker.CheckCompatibility(h.Hub, newHub)
 		if err != nil {
-			failure := wrapSource(tableauapi.Wrapf(err, "check compatibility of %s failed", name), checker)
+			failure := wrapSource(fmt.Errorf("check compatibility of %s failed: %w", name, err), checker)
 			log.Errorf("--- FAIL: %v", failure)
 			failures = append(failures, failure)
 		} else {
