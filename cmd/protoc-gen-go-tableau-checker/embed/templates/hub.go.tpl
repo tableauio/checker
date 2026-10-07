@@ -170,7 +170,7 @@ func (h *Hub) checkCompatibility(newHub *tableau.Hub, breakFailedCount int) []er
 }
 
 // Check loads configs and runs custom checks, returning joined failures or nil.
-// Use tableau.Inspect on the result for structured details and reporting.
+// Use tableauerrors.Inspect on the result for structured details and reporting.
 func (h *Hub) Check(dir string, format format.Format, options ...Option) error {
 	opts := ParseOptions(options...)
 	checkers, loadErrors := h.load(loadTypeDefault, dir, format, opts.LoadOptions...)
@@ -182,7 +182,7 @@ func (h *Hub) Check(dir string, format format.Format, options ...Option) error {
 }
 
 // CheckCompatibility compares two config snapshots, returning joined failures or nil.
-// Use tableau.Inspect on the result for structured details and reporting.
+// Use tableauerrors.Inspect on the result for structured details and reporting.
 func (h *Hub) CheckCompatibility(dir, newDir string, format format.Format, options ...Option) error {
 	opts := ParseOptions(options...)
 	// Load new config first; keep its messager map on newHub.
