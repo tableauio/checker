@@ -39,9 +39,6 @@ func main() {
 				return err
 			}
 		}
-		if err := generateError(gen); err != nil {
-			return err
-		}
 		return generateHub(gen)
 	})
 }

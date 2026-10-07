@@ -227,12 +227,12 @@ func (h *Hub) Check(dir string, format format.Format, options ...Option) error {
 	opts := ParseOptions(options...)
 	checkers, loadErrors := h.load(loadTypeDefault, dir, format, opts.LoadOptions...)
 	if len(loadErrors) > 0 {
-		return newError(loadErrors, opts.ErrorFormat)
+		return tableauapi.Inspect(errors.Join(loadErrors...))
 	}
 	h.checkers = checkers
 	checkErrors := h.check(opts.BreakFailedCount)
 	if len(checkErrors) > 0 {
-		return newError(checkErrors, opts.ErrorFormat)
+		return tableauapi.Inspect(errors.Join(checkErrors...))
 	}
 	return nil
 }
@@ -242,21 +242,22 @@ func (h *Hub) CheckCompatibility(dir, newDir string, format format.Format, optio
 	// Load new config first; keep its messager map on newHub.
 	_, newLoadErrors := h.load(loadTypeNew, newDir, format, opts.LoadOptions...)
 	if len(newLoadErrors) > 0 && !opts.SkipLoadErrors {
-		return newError(newLoadErrors, opts.ErrorFormat)
+		return tableauapi.Inspect(errors.Join(newLoadErrors...))
 	}
 	newHub := tableau.NewHub()
 	newHub.SetMessagerMap(h.GetMessagerMap())
 	// Load old config into this hub. Compatibility checkers must own the old
 	// messager data, so assign the old checkers explicitly after this load.
 	oldCheckers, oldLoadErrors := h.load(loadTypeOld, dir, format, opts.LoadOptions...)
+	loadErrors := append(newLoadErrors, oldLoadErrors...)
 	if len(oldLoadErrors) > 0 && !opts.SkipLoadErrors {
-		return newError(append(newLoadErrors, oldLoadErrors...), opts.ErrorFormat)
+		return tableauapi.Inspect(errors.Join(loadErrors...))
 	}
 	h.checkers = oldCheckers
 	compatErrors := h.checkCompatibility(newHub, opts.BreakFailedCount)
-	allErrors := append(append(newLoadErrors, oldLoadErrors...), compatErrors...)
+	allErrors := append(loadErrors, compatErrors...)
 	if len(allErrors) > 0 {
-		return newError(allErrors, opts.ErrorFormat)
+		return tableauapi.Inspect(errors.Join(allErrors...))
 	}
 	return nil
 }
@@ -286,8 +287,6 @@ type Options struct {
 	//
 	// Default: nil.
 	LoadOptions []load.Option
-	// ErrorFormat controls error presentation. Nil uses Tableau's text renderer.
-	ErrorFormat ErrorFormat
 }
 
 // Option is the functional option type.
@@ -320,13 +319,6 @@ func SkipLoadErrors() Option {
 func WithLoadOptions(options ...load.Option) Option {
 	return func(opts *Options) {
 		opts.LoadOptions = options
-	}
-}
-
-// WithErrorFormat sets the ErrorFormat used to print the returned error.
-func WithErrorFormat(f ErrorFormat) Option {
-	return func(opts *Options) {
-		opts.ErrorFormat = f
 	}
 }
 

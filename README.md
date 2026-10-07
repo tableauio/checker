@@ -82,24 +82,23 @@ Common options:
 
 ## Structured errors
 
-`Check` and `CheckCompatibility` return Tableau's `*tableau.Error` directly by
-default. Obtain it with `errors.As` and inspect its flat `Details` list. Native
+`Check` and `CheckCompatibility` return Tableau's `*tableau.Error` directly on
+failure. Obtain it with `errors.As` and inspect its flat `Details` list. Native
 load failures and ordinary custom errors use the same typed `ErrorDetail` model;
 each detail contains a message and its workbook, worksheet, and cell context.
 Checker adds missing schema locations while preserving actual shard locations
 and original causes. Messages identify load, custom-check, or compatibility
 failures. Failure limits count failed messagers, independently of detail count.
 
-Text uses Tableau's localized renderer. `WithErrorFormat(ErrorFormatJSON)`
-emits the same flat `{ "details": [...] }` structure. Custom `ErrorFormat`
-functions receive `*tableau.Error`; the presentation wrapper keeps that error
-and original causes reachable through `errors.As` and `errors.Is`.
+Printing the returned error uses Tableau's localized text renderer.
+`json.Marshal(err)` emits its flat `{ "details": [...] }` representation.
+Original causes remain reachable through `errors.As` and `errors.Is`.
 
 ## Layout
 
 | Path                                 | Role                                                     |
 | ------------------------------------ | -------------------------------------------------------- |
-| `cmd/protoc-gen-go-tableau-checker/` | Plugin source + embedded `hub` / `error` templates       |
+| `cmd/protoc-gen-go-tableau-checker/` | Plugin source + embedded hub template                   |
 | `test/proto/`                        | Sample Tableau workbooks (`.proto`)                      |
 | `test/protoconf/`                    | Generated `*.pb.go` + loader `*.pc.go`                   |
 | `test/check/`                        | Generated / hand-edited `*.check.go` hub and checkers    |

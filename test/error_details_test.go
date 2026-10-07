@@ -71,15 +71,16 @@ func TestLoadShardErrorDetails(t *testing.T) {
 
 				// JSON uses the same flat Tableau details as text output.
 				var encoded tableauapi.Error
-				text := check.ErrorFormatJSON(serr)
-				require.NoError(t, json.Unmarshal([]byte(text), &encoded))
+				data, marshalErr := json.Marshal(err)
+				require.NoError(t, marshalErr)
+				require.NoError(t, json.Unmarshal(data, &encoded))
 				want, marshalErr := json.Marshal(serr.Details)
 				require.NoError(t, marshalErr)
 				got, marshalErr := json.Marshal(encoded.Details)
 				require.NoError(t, marshalErr)
 				assert.JSONEq(t, string(want), string(got))
-				assert.NotContains(t, text, "\n")
-				assert.NotContains(t, text, `"issues"`)
+				assert.NotContains(t, string(data), "\n")
+				assert.NotContains(t, string(data), `"issues"`)
 				assert.True(t, errors.Is(err, serr.Unwrap()))
 			})
 		}
