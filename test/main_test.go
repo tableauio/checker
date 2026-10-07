@@ -172,59 +172,121 @@ Help: change "refer" prop or add referred sheet column "ID"
 }
 
 func TestLoadMergerSheetErrors(t *testing.T) {
-	require.NoError(t, tableauapi.SetLang("en"))
-	for _, tt := range []struct {
-		name       string
-		badFile    string
-		workbook   string
-		worksheet  string
-		sourceText string
+	sources := []struct {
+		name, badFile, workbook, worksheet string
+		text                               map[string]string
 	}{
-		{"primary sheet", "Test#ThemeConf.csv", "Test#*.csv", "ThemeConf", "Workbook: Test#*.csv\nWorksheet: ThemeConf\n"},
-		{"merger sub-sheet", "Merge1#ThemeSub.csv", "Merge1#*.csv", "ThemeSub", "Workbook: Merge1#*.csv (Primary: Test#*.csv)\nWorksheet: ThemeSub (Primary: ThemeConf)\n"},
-		{"primary workbook sub-sheet", "Test#ThemeSub.csv", "Test#*.csv", "ThemeSub", "Workbook: Test#*.csv\nWorksheet: ThemeSub (Primary: ThemeConf)\n"},
-	} {
-		t.Run(tt.name, func(t *testing.T) {
-			dir := t.TempDir()
-			for name, content := range map[string]string{
-				"Test#ThemeConf.csv":  "Name,Value\nstring,uint64\nName,Value\nprimary,1\n",
-				"Test#ThemeSub.csv":   "Name,Value\nstring,uint64\nName,Value\nsub,2\n",
-				"Merge1#ThemeSub.csv": "Name,Value\nstring,uint64\nName,Value\nmerge1,3\n",
-				"Merge2#ThemeSub.csv": "Name,Value\nstring,uint64\nName,Value\nmerge2,4\n",
-			} {
-				if name == tt.badFile {
-					content = "Name,Value\nstring,uint64\nName,Value\nbad,invalid\n"
-				}
-				require.NoError(t, os.WriteFile(filepath.Join(dir, name), []byte(content), 0o600))
-			}
-			err := check.NewHub(tableau.Filter(func(name string) bool { return name == "ThemeConf" })).Check(dir, format.CSV,
-				check.WithLoadOptions(load.MaxErrorsPerSheet(5)))
-			require.Error(t, err)
-			serr := tableauapi.Inspect(err)
-			require.Len(t, serr.Details, 1)
-			detail := serr.Details[0]
-			assert.Equal(t, "E2012", detail.Code)
-			require.NotNil(t, detail.Source)
-			assert.Equal(t, tt.workbook, detail.Source.Workbook)
-			assert.Equal(t, tt.worksheet, detail.Source.Worksheet)
-			assert.Equal(t, "Test#*.csv", detail.Source.PrimaryWorkbook)
-			assert.Equal(t, "ThemeConf", detail.Source.PrimaryWorksheet)
-			require.NotNil(t, detail.Source.Cell)
-			assert.Equal(t, "B4", detail.Source.Cell.Position)
-			assert.Equal(t, "invalid", detail.Source.Cell.Data)
-			wantText := fmt.Sprintf(`error[E2012]: invalid syntax of numerical value
+		{"primary sheet", "Test#ThemeConf.csv", "Test#*.csv", "ThemeConf", map[string]string{
+			"en": "Workbook: Test#*.csv\nWorksheet: ThemeConf\n",
+			"zh": "工作簿: Test#*.csv\n工作表: ThemeConf\n",
+		}},
+		{"merger sub-sheet", "Merge1#ThemeSub.csv", "Merge1#*.csv", "ThemeSub", map[string]string{
+			"en": "Workbook: Merge1#*.csv (Primary: Test#*.csv)\nWorksheet: ThemeSub (Primary: ThemeConf)\n",
+			"zh": "工作簿: Merge1#*.csv (主工作簿: Test#*.csv)\n工作表: ThemeSub (主工作表: ThemeConf)\n",
+		}},
+		{"primary workbook sub-sheet", "Test#ThemeSub.csv", "Test#*.csv", "ThemeSub", map[string]string{
+			"en": "Workbook: Test#*.csv\nWorksheet: ThemeSub (Primary: ThemeConf)\n",
+			"zh": "工作簿: Test#*.csv\n工作表: ThemeSub (主工作表: ThemeConf)\n",
+		}},
+	}
+	// Ten commas after Value place the incell struct in column L; two valid
+	// data rows before the invalid row place its value at L6.
+	incellCSV := "Name,Value" + strings.Repeat(",", 10) + "FightTypeFilter\n" +
+		"string,uint64" + strings.Repeat(",", 10) + "{FightTypeFilter}\n" +
+		"Name,Value" + strings.Repeat(",", 10) + "Fight type filter\n" +
+		"valid-first,1" + strings.Repeat(",", 10) + "\n" +
+		"valid-second,2" + strings.Repeat(",", 10) + "\n" +
+		"bad,3" + strings.Repeat(",", 10) + ";竞技玩法;娱乐玩法\n"
+	failures := []struct {
+		name, code, csv, position, data string
+		text                            map[string]string
+	}{
+		{
+			name: "numeric", code: "E2012", csv: "Name,Value\nstring,uint64\nName,Value\nbad,invalid\n",
+			position: "B4", data: "invalid",
+			text: map[string]string{
+				"en": `error[E2012]: invalid syntax of numerical value
 %sDataCellPos: B4
 DataCell: invalid
 Reason: "invalid" cannot be parsed to numerical type "uint64", strconv.ParseUint: parsing "invalid": invalid syntax
 Help: fill cell data with valid syntax of numerical type "uint64"
-`, tt.sourceText)
-			assert.Equal(t, wantText, serr.Error())
-			data, marshalErr := json.Marshal(serr)
-			require.NoError(t, marshalErr)
-			var decoded tableauapi.Error
-			require.NoError(t, json.Unmarshal(data, &decoded))
-			require.Len(t, decoded.Details, 1)
-			assert.Equal(t, detail.Source, decoded.Details[0].Source)
+`,
+				"zh": `error[E2012]: invalid syntax of numerical value
+%s单元格位置: B4
+单元格数据: invalid
+错误原因: 无法将 "invalid" 解析为数值类型 "uint64", strconv.ParseUint: parsing "invalid": invalid syntax
+修复建议: 请依据类型 "uint64" 填充合法的数值; int32/int64: 32/64位整数, uint32/uint64: 32/64位正整数, float32/float64: 32/64位浮点数
+`,
+			},
+		},
+		{
+			name: "incell struct", code: "E2031", csv: incellCSV,
+			position: "L6", data: ";竞技玩法;娱乐玩法",
+			text: map[string]string{
+				"en": `error[E2031]: incell struct field count exceeds limit
+%sDataCellPos: L6
+DataCell: ;竞技玩法;娱乐玩法
+Reason: incell struct "protoconf.FightTypeFilter" expects at most 2 fields, got 3 parts in ";竞技玩法;娱乐玩法" (sep: ";")
+Help: remove extra ";" separators so the cell contains at most 2 field values
+`,
+				"zh": `error[E2031]: incell struct field count exceeds limit
+%s单元格位置: L6
+单元格数据: ;竞技玩法;娱乐玩法
+错误原因: incell struct "protoconf.FightTypeFilter" 期望最多 2 个字段, 但 ";竞技玩法;娱乐玩法" 中有 3 段 (分隔符: ";")
+修复建议: 减少单元格中的 ";" 分隔符，使字段值不超过 2 个
+`,
+			},
+		},
+	}
+	for _, lang := range []string{"en", "zh"} {
+		t.Run(lang, func(t *testing.T) {
+			require.NoError(t, tableauapi.SetLang(lang))
+			t.Cleanup(func() { require.NoError(t, tableauapi.SetLang("en")) })
+			for _, source := range sources {
+				t.Run(source.name, func(t *testing.T) {
+					for _, failure := range failures {
+						t.Run(failure.name, func(t *testing.T) {
+							dir := t.TempDir()
+							for name, content := range map[string]string{
+								"Test#ThemeConf.csv":  "Name,Value\nstring,uint64\nName,Value\nprimary,1\n",
+								"Test#ThemeSub.csv":   "Name,Value\nstring,uint64\nName,Value\nsub,2\n",
+								"Merge1#ThemeSub.csv": "Name,Value\nstring,uint64\nName,Value\nmerge1,3\n",
+								"Merge2#ThemeSub.csv": "Name,Value\nstring,uint64\nName,Value\nmerge2,4\n",
+							} {
+								if name == source.badFile {
+									content = failure.csv
+								}
+								require.NoError(t, os.WriteFile(filepath.Join(dir, name), []byte(content), 0o600))
+							}
+							err := check.NewHub(tableau.Filter(func(name string) bool { return name == "ThemeConf" })).Check(dir, format.CSV,
+								check.WithLoadOptions(load.MaxErrorsPerSheet(5)))
+							require.Error(t, err)
+							serr := tableauapi.Inspect(err)
+							require.Len(t, serr.Details, 1)
+							detail := serr.Details[0]
+							assert.Equal(t, failure.code, detail.Code)
+							require.NotNil(t, detail.Source)
+							assert.Equal(t, source.workbook, detail.Source.Workbook)
+							assert.Equal(t, source.worksheet, detail.Source.Worksheet)
+							assert.Equal(t, "Test#*.csv", detail.Source.PrimaryWorkbook)
+							assert.Equal(t, "ThemeConf", detail.Source.PrimaryWorksheet)
+							require.NotNil(t, detail.Source.Cell)
+							assert.Equal(t, failure.position, detail.Source.Cell.Position)
+							assert.Equal(t, failure.data, detail.Source.Cell.Data)
+							wantText := fmt.Sprintf(failure.text[lang], source.text[lang])
+							assert.Equal(t, wantText, serr.Error())
+							assert.Equal(t, wantText, fmt.Sprint(serr))
+							data, marshalErr := json.Marshal(serr)
+							require.NoError(t, marshalErr)
+							var decoded tableauapi.Error
+							require.NoError(t, json.Unmarshal(data, &decoded))
+							require.Len(t, decoded.Details, 1)
+							assert.Equal(t, detail.Source, decoded.Details[0].Source)
+							assert.Equal(t, wantText, decoded.Error())
+						})
+					}
+				})
+			}
 		})
 	}
 }
