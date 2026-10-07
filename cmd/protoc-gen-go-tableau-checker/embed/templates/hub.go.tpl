@@ -223,26 +223,26 @@ func (h *Hub) checkCompatibility(newHub *tableau.Hub, breakFailedCount int) []er
 	return failures
 }
 
+// Check loads configs and runs custom checks, returning joined failures or nil.
+// Use tableau.Inspect on the result for structured details and reporting.
 func (h *Hub) Check(dir string, format format.Format, options ...Option) error {
 	opts := ParseOptions(options...)
 	checkers, loadErrors := h.load(loadTypeDefault, dir, format, opts.LoadOptions...)
 	if len(loadErrors) > 0 {
-		return tableauapi.Inspect(errors.Join(loadErrors...))
+		return errors.Join(loadErrors...)
 	}
 	h.checkers = checkers
-	checkErrors := h.check(opts.BreakFailedCount)
-	if len(checkErrors) > 0 {
-		return tableauapi.Inspect(errors.Join(checkErrors...))
-	}
-	return nil
+	return errors.Join(h.check(opts.BreakFailedCount)...)
 }
 
+// CheckCompatibility compares two config snapshots, returning joined failures or nil.
+// Use tableau.Inspect on the result for structured details and reporting.
 func (h *Hub) CheckCompatibility(dir, newDir string, format format.Format, options ...Option) error {
 	opts := ParseOptions(options...)
 	// Load new config first; keep its messager map on newHub.
 	_, newLoadErrors := h.load(loadTypeNew, newDir, format, opts.LoadOptions...)
 	if len(newLoadErrors) > 0 && !opts.SkipLoadErrors {
-		return tableauapi.Inspect(errors.Join(newLoadErrors...))
+		return errors.Join(newLoadErrors...)
 	}
 	newHub := tableau.NewHub()
 	newHub.SetMessagerMap(h.GetMessagerMap())
@@ -251,15 +251,11 @@ func (h *Hub) CheckCompatibility(dir, newDir string, format format.Format, optio
 	oldCheckers, oldLoadErrors := h.load(loadTypeOld, dir, format, opts.LoadOptions...)
 	loadErrors := append(newLoadErrors, oldLoadErrors...)
 	if len(oldLoadErrors) > 0 && !opts.SkipLoadErrors {
-		return tableauapi.Inspect(errors.Join(loadErrors...))
+		return errors.Join(loadErrors...)
 	}
 	h.checkers = oldCheckers
 	compatErrors := h.checkCompatibility(newHub, opts.BreakFailedCount)
-	allErrors := append(loadErrors, compatErrors...)
-	if len(allErrors) > 0 {
-		return tableauapi.Inspect(errors.Join(allErrors...))
-	}
-	return nil
+	return errors.Join(append(loadErrors, compatErrors...)...)
 }
 
 type Options struct {

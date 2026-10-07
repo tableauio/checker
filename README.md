@@ -82,17 +82,26 @@ Common options:
 
 ## Structured errors
 
-`Check` and `CheckCompatibility` return Tableau's `*tableau.Error` directly on
-failure. Obtain it with `errors.As` and inspect its flat `Details` list. Native
-load failures and ordinary custom errors use the same typed `ErrorDetail` model;
-each detail contains a message and its workbook, worksheet, and cell context.
+`Check` and `CheckCompatibility` return joined error chains on failure and nil
+on success. Call `tableau.Inspect(err)` when reporting an error to obtain its
+flat `Details` list. Native load failures and ordinary custom errors use the
+same typed `ErrorDetail` model, containing a message and its workbook,
+worksheet, and cell context.
 Checker adds missing schema locations while preserving actual shard locations
 and original causes. Messages identify load, custom-check, or compatibility
 failures. Failure limits count failed messagers, independently of detail count.
 
-Printing the returned error uses Tableau's localized text renderer.
-`json.Marshal(err)` emits its flat `{ "details": [...] }` representation.
-Original causes remain reachable through `errors.As` and `errors.Is`.
+Print the inspected error for Tableau's localized text, or marshal it for the
+flat `{ "details": [...] }` JSON representation. Original causes remain
+reachable through `errors.As` and `errors.Is` before and after inspection.
+
+```go
+if err := hub.Check(dir, format.JSON); err != nil {
+    serr := tableau.Inspect(err)
+    fmt.Print(serr)
+    // For JSON output, use json.Marshal(serr).
+}
+```
 
 ## Layout
 

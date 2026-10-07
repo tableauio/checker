@@ -6,6 +6,7 @@ import (
 	"github.com/tableauio/checker/test/check"
 	"github.com/tableauio/checker/test/customconf"
 	"github.com/tableauio/checker/test/protoconf/tableau"
+	tableauapi "github.com/tableauio/tableau"
 	"github.com/tableauio/tableau/format"
 	"github.com/tableauio/tableau/load"
 )
@@ -25,7 +26,7 @@ func Example_check() {
 		check.WithLoadOptions(load.IgnoreUnknownFields()),
 	)
 	if err != nil {
-		fmt.Print(err)
+		fmt.Print(tableauapi.Inspect(err))
 	}
 	// Output:
 	// custom item conf processed
@@ -55,7 +56,7 @@ func Example_checkCompatibility() {
 		fmt.Println("compatible")
 		return
 	}
-	fmt.Print(err)
+	fmt.Print(tableauapi.Inspect(err))
 	// Output:
 	// Workbook: Test#*.csv
 	// Worksheet: Activity

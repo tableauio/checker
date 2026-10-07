@@ -14,24 +14,15 @@ import (
 	"github.com/tableauio/tableau/load"
 )
 
-// structuredError verifies checks return Tableau's error directly.
-func structuredError(t *testing.T, err error) *tableauapi.Error {
-	t.Helper()
-	require.Error(t, err)
-	var serr *tableauapi.Error
-	require.ErrorAs(t, err, &serr)
-	assert.Same(t, serr, err)
-	return serr
-}
-
 func TestLoad(t *testing.T) {
 	err := check.NewHub().Check("./non-existent-dir/", format.JSON,
 		check.BreakFailedCount(10),
 		check.WithLoadOptions(load.IgnoreUnknownFields()))
-	serr := structuredError(t, err)
+	require.Error(t, err)
+	serr := tableauapi.Inspect(err)
 	require.NotEmpty(t, serr.Details)
-	assert.Contains(t, err.Error(), "Workbook:")
-	assert.Contains(t, err.Error(), "Worksheet:")
+	assert.Contains(t, serr.Error(), "Workbook:")
+	assert.Contains(t, serr.Error(), "Worksheet:")
 	for _, detail := range serr.Details {
 		assert.Contains(t, detail.Message, "load failed:")
 		require.NotNil(t, detail.Source)
@@ -44,15 +35,16 @@ func TestCheck(t *testing.T) {
 	err := check.NewHub().Check("./testdata/", format.JSON,
 		check.BreakFailedCount(1),
 		check.WithLoadOptions(load.IgnoreUnknownFields()))
-	serr := structuredError(t, err)
+	require.Error(t, err)
+	serr := tableauapi.Inspect(err)
 	require.Len(t, serr.Details, 1)
 	detail := serr.Details[0]
 	assert.Equal(t, "custom check failed: awardId: 0 not found", detail.Message)
 	require.NotNil(t, detail.Source)
 	assert.Equal(t, "Test#*.csv", detail.Source.Workbook)
 	assert.Equal(t, "Activity", detail.Source.Worksheet)
-	assert.Equal(t, "Workbook: Test#*.csv\nWorksheet: Activity\nReason: custom check failed: awardId: 0 not found\n", err.Error())
-	data, marshalErr := json.Marshal(err)
+	assert.Equal(t, "Workbook: Test#*.csv\nWorksheet: Activity\nReason: custom check failed: awardId: 0 not found\n", serr.Error())
+	data, marshalErr := json.Marshal(serr)
 	require.NoError(t, marshalErr)
 	assert.JSONEq(t, `{"details":[{"message":"custom check failed: awardId: 0 not found","source":{"workbook":"Test#*.csv","worksheet":"Activity"}}]}`, string(data))
 }
@@ -61,7 +53,8 @@ func TestCheckCompatibility(t *testing.T) {
 	err := check.NewHub().CheckCompatibility("./testdata/", "./testdata1/", format.JSON,
 		check.SkipLoadErrors(), check.BreakFailedCount(10),
 		check.WithLoadOptions(load.IgnoreUnknownFields()))
-	serr := structuredError(t, err)
+	require.Error(t, err)
+	serr := tableauapi.Inspect(err)
 	var loads, compatibility int
 	for _, detail := range serr.Details {
 		require.NotNil(t, detail.Source)
@@ -83,8 +76,8 @@ var loadOriginAllowList = map[string]bool{"ItemConf": true, "ChapterConf": true}
 
 func loadOriginFilter(name string) bool { return loadOriginAllowList[name] }
 
-// TestLoadOriginFromCSV verifies loading succeeds for valid inputs and returns
-// one flat Tableau detail per failing cell for invalid inputs across two sheets.
+// TestLoadOriginFromCSV verifies valid inputs load successfully and inspecting
+// failures yields one Tableau detail per invalid cell across two sheets.
 func TestLoadOriginFromCSV(t *testing.T) {
 	t.Run("success", func(t *testing.T) {
 		err := check.NewHub(tableau.Filter(loadOriginFilter)).Check("./testdata2/", format.CSV,
@@ -94,7 +87,8 @@ func TestLoadOriginFromCSV(t *testing.T) {
 	err := check.NewHub(tableau.Filter(loadOriginFilter)).Check("./testdata3/", format.CSV,
 		check.BreakFailedCount(10),
 		check.WithLoadOptions(load.MaxErrorsPerSheet(5)))
-	serr := structuredError(t, err)
+	require.Error(t, err)
+	serr := tableauapi.Inspect(err)
 	counts := map[string]int{}
 	for _, detail := range serr.Details {
 		assert.Contains(t, detail.Message, "load failed:")
