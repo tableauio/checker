@@ -108,10 +108,12 @@ func TestLoadReferErrors(t *testing.T) {
 	}{
 		{name: "valid value", itemID: "1", itemCSV: "ID\nuint32\nItem ID\n1\n"},
 		{
-			name: "missing value", itemID: "999", itemCSV: "ID\nuint32\nItem ID\n1\n", code: "E2002",
+			name: "missing value", itemID: "999", itemCSV: "ID\nuint32\nItem ID\n1\n", code: "E2002", referred: true,
 			wantText: `error[E2002]: field value not in referred space
 Workbook: Test#*.csv
 Worksheet: ThemeConf
+ReferWorkbook: Item#*.csv
+ReferWorksheet: ItemConf
 DataCellPos: C4
 DataCell: 999
 Reason: value "999" not in referred space "ItemConf.ID"
