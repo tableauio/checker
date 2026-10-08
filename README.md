@@ -90,8 +90,9 @@ including actual and primary workbooks, worksheets, and failing cells. Checker
 preserves those details. Custom check, compatibility, and post-load failures
 retain their original messages and carry the workbook and worksheet declared
 by their protobuf schema. Source details also retain workbook/worksheet aliases
-and configured merger/scatter sheet specifiers in text and JSON. These schema
-settings describe possible inputs; precise failing shard/cell locations remain
+and configured merger/scatter sheet specifiers in text and JSON. Text appends
+these settings to the workbook/worksheet lines as parenthesized key-value pairs.
+These schema settings describe possible inputs; precise failing shard/cell locations remain
 separate. Existing source details
 take precedence; custom messagers without a protobuf source retain plain errors.
 Failure limits count failed messagers, independently of detail count.

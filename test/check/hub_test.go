@@ -186,7 +186,7 @@ func TestCustomFailureSchemaContext(t *testing.T) {
 				require.NotNil(t, source)
 				assert.Equal(t, "Tasks", source.WorkbookAlias)
 				assert.Equal(t, "TaskConf", source.WorksheetAlias)
-				assert.Equal(t, "error[E0005]: custom check failed\nWorkbook: Task#*.csv\nWorksheet: Task\nWorkbookAlias: Tasks\nWorksheetAlias: TaskConf\n"+mode+": Season*.csv#Daily*, BattlePass*.csv#Task*\nReason: condition missing\n", serr.Error())
+				assert.Equal(t, "error[E0005]: custom check failed\nWorkbook: Task#*.csv (Alias: Tasks)\nWorksheet: Task (Alias: TaskConf, "+mode+": [Season*.csv#Daily*, BattlePass*.csv#Task*])\nReason: condition missing\n", serr.Error())
 				if mode == "Merger" {
 					assert.Equal(t, patterns, source.Merger)
 					assert.Empty(t, source.Scatter)

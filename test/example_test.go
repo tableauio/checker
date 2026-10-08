@@ -32,8 +32,7 @@ func Example_check() {
 	// custom item conf processed
 	// error[E0005]: custom check failed
 	// Workbook: Test#*.csv
-	// Worksheet: Activity
-	// WorksheetAlias: ActivityConf
+	// Worksheet: Activity (Alias: ActivityConf)
 	// Reason: awardId: 0 not found
 }
 
@@ -62,8 +61,7 @@ func Example_checkCompatibility() {
 	// Output:
 	// error[E0005]: custom check failed
 	// Workbook: Test#*.csv
-	// Worksheet: Activity
-	// WorksheetAlias: ActivityConf
+	// Worksheet: Activity (Alias: ActivityConf)
 	// Reason: ItemConf incompatible: 5 item id(s) removed in new version: [2 3 2001 2002 2003]
 }
 

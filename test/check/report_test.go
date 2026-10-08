@@ -45,20 +45,17 @@ Reason: 异人列表不能为空，教学配置ID: 10004
 
 [4] error[E0005]: custom check failed
 Workbook: conf/server/Pvp/Arena.xlsx
-Worksheet: CommonConf
-WorksheetAlias: ArenaCommonConf
+Worksheet: CommonConf (Alias: ArenaCommonConf)
 Reason: MaxRecentCnt must be greater than 0
 
 [5] error[E0005]: custom check failed
 Workbook: conf/server/Task.xlsx
-Worksheet: TaskConfig
-WorksheetAlias: TaskConf
+Worksheet: TaskConfig (Alias: TaskConf)
 Reason: 任务集[赛季日常]中的任务[10100016]没配条件目标
 
 [6] error[E0005]: custom check failed
 Workbook: conf/server/Task.xlsx
-Worksheet: TaskConfig
-WorksheetAlias: TaskConf
+Worksheet: TaskConfig (Alias: TaskConf)
 Reason: 任务集[赛季日常]中的任务[10100015]没配条件目标
 `
 	driver := &recordingDriver{}

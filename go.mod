@@ -5,7 +5,7 @@ go 1.24.0
 require (
 	github.com/stretchr/testify v1.11.1
 	github.com/tableauio/loader v0.6.0
-	github.com/tableauio/tableau v0.16.4-0.20261008032909-8f5b8336e2ea
+	github.com/tableauio/tableau v0.16.4-0.20261008040015-046c4f61b08c
 	google.golang.org/protobuf v1.36.11
 )
 
