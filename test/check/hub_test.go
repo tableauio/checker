@@ -58,7 +58,7 @@ func TestCustomFailureSource(t *testing.T) {
 			assert.Equal(t, "Activity", serr.Details[0].Source.Worksheet)
 			assert.Nil(t, serr.Details[0].Source.Cell)
 			assert.Equal(t, "condition missing", serr.Details[0].Message)
-			assert.Equal(t, "E2032", serr.Details[0].Code)
+			assert.Equal(t, "E0005", serr.Details[0].Code)
 		})
 	}
 }
@@ -76,7 +76,7 @@ func TestCustomFailureKeepsPreciseSource(t *testing.T) {
 		{
 			name:        "structured error",
 			wantMessage: "invalid value",
-			wantCode:    "E2032",
+			wantCode:    "E0005",
 			wantSource:  source,
 			err: &tableauapi.Error{Details: []*tableauapi.ErrorDetail{{
 				Message: "invalid value", Source: source,
@@ -85,7 +85,7 @@ func TestCustomFailureKeepsPreciseSource(t *testing.T) {
 		{
 			name:        "metadata error",
 			wantMessage: "invalid value",
-			wantCode:    "E2032",
+			wantCode:    "E0005",
 			wantSource:  &tableauapi.SourceLocation{Workbook: "Shard.xlsx", Worksheet: "SubSheet"},
 			err: tableauapi.WrapKV(errors.New("invalid value"),
 				tableauapi.KeyBookName, "Shard.xlsx", tableauapi.KeySheetName, "SubSheet"),

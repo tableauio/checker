@@ -30,63 +30,63 @@ func TestCustomErrorReport(t *testing.T) {
 		want string
 	}{
 		{"en", `check failed, see errors below:
-[1] error[E2032]: custom check failed
+[1] error[E0005]: custom check failed
 Workbook: conf/server/AITutorial.xlsx
 Worksheet: AITutorialConf
 Reason: 异人列表不能为空，教学配置ID: 10005
 
-[2] error[E2032]: custom check failed
+[2] error[E0005]: custom check failed
 Workbook: conf/server/AITutorial.xlsx
 Worksheet: AITutorialConf
 Reason: 异人列表不能为空，教学配置ID: 10003
 
-[3] error[E2032]: custom check failed
+[3] error[E0005]: custom check failed
 Workbook: conf/server/AITutorial.xlsx
 Worksheet: AITutorialConf
 Reason: 异人列表不能为空，教学配置ID: 10004
 
-[4] error[E2032]: custom check failed
+[4] error[E0005]: custom check failed
 Workbook: conf/server/Pvp/Arena.xlsx
 Worksheet: CommonConf
 Reason: MaxRecentCnt must be greater than 0
 
-[5] error[E2032]: custom check failed
+[5] error[E0005]: custom check failed
 Workbook: conf/server/Task.xlsx
 Worksheet: TaskConfig
 Reason: 任务集[赛季日常]中的任务[10100016]没配条件目标
 
-[6] error[E2032]: custom check failed
+[6] error[E0005]: custom check failed
 Workbook: conf/server/Task.xlsx
 Worksheet: TaskConfig
 Reason: 任务集[赛季日常]中的任务[10100015]没配条件目标
 `},
 		{"zh", `check failed, see errors below:
-[1] error[E2032]: custom check failed
+[1] error[E0005]: custom check failed
 工作簿: conf/server/AITutorial.xlsx
 工作表: AITutorialConf
 错误原因: 异人列表不能为空，教学配置ID: 10005
 
-[2] error[E2032]: custom check failed
+[2] error[E0005]: custom check failed
 工作簿: conf/server/AITutorial.xlsx
 工作表: AITutorialConf
 错误原因: 异人列表不能为空，教学配置ID: 10003
 
-[3] error[E2032]: custom check failed
+[3] error[E0005]: custom check failed
 工作簿: conf/server/AITutorial.xlsx
 工作表: AITutorialConf
 错误原因: 异人列表不能为空，教学配置ID: 10004
 
-[4] error[E2032]: custom check failed
+[4] error[E0005]: custom check failed
 工作簿: conf/server/Pvp/Arena.xlsx
 工作表: CommonConf
 错误原因: MaxRecentCnt must be greater than 0
 
-[5] error[E2032]: custom check failed
+[5] error[E0005]: custom check failed
 工作簿: conf/server/Task.xlsx
 工作表: TaskConfig
 错误原因: 任务集[赛季日常]中的任务[10100016]没配条件目标
 
-[6] error[E2032]: custom check failed
+[6] error[E0005]: custom check failed
 工作簿: conf/server/Task.xlsx
 工作表: TaskConfig
 错误原因: 任务集[赛季日常]中的任务[10100015]没配条件目标
@@ -127,7 +127,7 @@ Reason: 任务集[赛季日常]中的任务[10100015]没配条件目标
 			for i, cause := range causes {
 				require.ErrorIs(t, reported, cause)
 				assert.Equal(t, cause.Error(), serr.Details[i].Message)
-				assert.Equal(t, "E2032", serr.Details[i].Code)
+				assert.Equal(t, "E0005", serr.Details[i].Code)
 			}
 			assert.Equal(t, []string{
 				"=== RUN   AITutorialConf", "--- FAIL: AITutorialConf",

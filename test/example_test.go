@@ -30,7 +30,7 @@ func Example_check() {
 	}
 	// Output:
 	// custom item conf processed
-	// error[E2032]: custom check failed
+	// error[E0005]: custom check failed
 	// Workbook: Test#*.csv
 	// Worksheet: Activity
 	// Reason: awardId: 0 not found
@@ -59,7 +59,7 @@ func Example_checkCompatibility() {
 	}
 	fmt.Println(tableauapi.Inspect(err))
 	// Output:
-	// error[E2032]: custom check failed
+	// error[E0005]: custom check failed
 	// Workbook: Test#*.csv
 	// Worksheet: Activity
 	// Reason: ItemConf incompatible: 5 item id(s) removed in new version: [2 3 2001 2002 2003]

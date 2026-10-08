@@ -94,7 +94,7 @@ take precedence; custom messagers without a protobuf source retain plain errors.
 Failure limits count failed messagers, independently of detail count.
 
 Progress logs identify each failed messager on one line. Detailed errors are
-rendered once by the caller. Custom failures use Tableau code `E2032`
+rendered once by the caller. Custom failures use Tableau code `E0005`
 (`custom check failed`) and retain their original message as the reason. Existing
 specific Tableau codes take precedence; aggregate numbering spans all failures.
 

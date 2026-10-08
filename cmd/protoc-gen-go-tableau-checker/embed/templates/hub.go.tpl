@@ -130,7 +130,7 @@ func (h *Hub) load(loadType, dir string, f format.Format, options ...load.Option
 
 // wrapCheckError classifies custom failures and adds schema source defaults.
 func wrapCheckError(err error, msger tableau.Messager) error {
-	err = tableauapi.E2032(err)
+	err = tableauapi.E0005(err)
 	msg := msger.Message()
 	if msg == nil {
 		return err
