@@ -10,6 +10,7 @@ import (
 	tableauapi "github.com/tableauio/tableau"
 	"github.com/tableauio/tableau/log"
 	"github.com/tableauio/tableau/log/core"
+	"github.com/tableauio/tableau/proto/tableaupb"
 )
 
 type recordingDriver struct {
@@ -45,16 +46,19 @@ Reason: 异人列表不能为空，教学配置ID: 10004
 [4] error[E0005]: custom check failed
 Workbook: conf/server/Pvp/Arena.xlsx
 Worksheet: CommonConf
+WorksheetAlias: ArenaCommonConf
 Reason: MaxRecentCnt must be greater than 0
 
 [5] error[E0005]: custom check failed
 Workbook: conf/server/Task.xlsx
 Worksheet: TaskConfig
+WorksheetAlias: TaskConf
 Reason: 任务集[赛季日常]中的任务[10100016]没配条件目标
 
 [6] error[E0005]: custom check failed
 Workbook: conf/server/Task.xlsx
 Worksheet: TaskConfig
+WorksheetAlias: TaskConf
 Reason: 任务集[赛季日常]中的任务[10100015]没配条件目标
 `
 	driver := &recordingDriver{}
@@ -77,9 +81,12 @@ Reason: 任务集[赛季日常]中的任务[10100015]没配条件目标
 		tableauapi.KeyBookName, "conf/server/Task.xlsx", tableauapi.KeySheetName, "TaskConfig"))
 	hub := NewHub()
 	hub.checkers = map[string]checker{
-		"AITutorialConf":  &failingChecker{failure: ai},
-		"ArenaCommonConf": &failingChecker{failure: arena},
-		"TaskConf":        &failingChecker{failure: task},
+		"AITutorialConf": &failingChecker{failure: ai, message: sourceMessage(t, "AITutorialConf",
+			&tableaupb.WorkbookOptions{Name: "conf/server/AITutorial.xlsx"}, &tableaupb.WorksheetOptions{Name: "AITutorialConf"})},
+		"ArenaCommonConf": &failingChecker{failure: arena, message: sourceMessage(t, "ArenaCommonConf",
+			&tableaupb.WorkbookOptions{Name: "conf/server/Pvp/Arena.xlsx"}, &tableaupb.WorksheetOptions{Name: "CommonConf"})},
+		"TaskConf": &failingChecker{failure: task, message: sourceMessage(t, "TaskConf",
+			&tableaupb.WorkbookOptions{Name: "conf/server/Task.xlsx"}, &tableaupb.WorksheetOptions{Name: "TaskConfig"})},
 	}
 	err := errors.Join(hub.check(0)...)
 	serr := tableauapi.Inspect(err)

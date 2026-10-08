@@ -151,6 +151,18 @@ func wrapCheckError(err error, msger tableau.Messager) error {
 	if name := worksheet.GetName(); name != "" {
 		fields = append(fields, tableauapi.KeySheetName, name)
 	}
+	if alias := workbook.GetAlias(); alias != "" {
+		fields = append(fields, tableauapi.KeyBookAlias, alias)
+	}
+	if alias := string(desc.Name()); worksheet.GetName() != "" && alias != worksheet.GetName() {
+		fields = append(fields, tableauapi.KeySheetAlias, alias)
+	}
+	if merger := worksheet.GetMerger(); len(merger) != 0 {
+		fields = append(fields, tableauapi.KeyMerger, merger)
+	}
+	if scatter := worksheet.GetScatter(); len(scatter) != 0 {
+		fields = append(fields, tableauapi.KeyScatter, scatter)
+	}
 	if len(fields) == 0 {
 		return err
 	}

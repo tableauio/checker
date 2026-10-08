@@ -43,10 +43,10 @@ func TestCheck(t *testing.T) {
 	require.NotNil(t, detail.Source)
 	assert.Equal(t, "Test#*.csv", detail.Source.Workbook)
 	assert.Equal(t, "Activity", detail.Source.Worksheet)
-	assert.Equal(t, "error[E0005]: custom check failed\nWorkbook: Test#*.csv\nWorksheet: Activity\nReason: awardId: 0 not found\n", serr.Error())
+	assert.Equal(t, "error[E0005]: custom check failed\nWorkbook: Test#*.csv\nWorksheet: Activity\nWorksheetAlias: ActivityConf\nReason: awardId: 0 not found\n", serr.Error())
 	data, marshalErr := json.Marshal(serr)
 	require.NoError(t, marshalErr)
-	assert.JSONEq(t, `{"details":[{"code":"E0005","description":"custom check failed","module":"default","message":"awardId: 0 not found","source":{"workbook":"Test#*.csv","worksheet":"Activity"}}]}`, string(data))
+	assert.JSONEq(t, `{"details":[{"code":"E0005","description":"custom check failed","module":"default","message":"awardId: 0 not found","source":{"workbook":"Test#*.csv","worksheet":"Activity","worksheetAlias":"ActivityConf"}}]}`, string(data))
 }
 
 func TestCheckCompatibility(t *testing.T) {
@@ -113,6 +113,7 @@ func TestLoadReferErrors(t *testing.T) {
 			wantText: `error[E2002]: field value not in referred space
 Workbook: Test#*.csv
 Worksheet: ThemeConf
+Merger: Merge1*.csv#*, Merge2*.csv#*, Test*.csv#ThemeSub*
 ReferWorkbook: Item#*.csv
 ReferWorksheet: ItemConf
 DataCellPos: C4
@@ -126,6 +127,7 @@ Help: correct value "999" or add it to one of the columns referenced by "ItemCon
 			wantText: `error[E2015]: referred sheet column not found
 Workbook: Test#*.csv
 Worksheet: ThemeConf
+Merger: Merge1*.csv#*, Merge2*.csv#*, Test*.csv#ThemeSub*
 ReferWorkbook: Item#*.csv
 ReferWorksheet: ItemConf
 DataCellPos: C4
@@ -188,6 +190,7 @@ func TestLoadMergerSheetErrors(t *testing.T) {
 			wantText: `error[E2012]: invalid syntax of numerical value
 Workbook: Test#*.csv
 Worksheet: ThemeConf
+Merger: Merge1*.csv#*, Merge2*.csv#*, Test*.csv#ThemeSub*
 DataCellPos: B4
 DataCell: invalid
 Reason: "invalid" cannot be parsed to numerical type "uint64", strconv.ParseUint: parsing "invalid": invalid syntax
@@ -199,6 +202,7 @@ Help: fill cell data with valid syntax of numerical type "uint64"
 			wantText: `error[E2012]: invalid syntax of numerical value
 Workbook: Merge1#*.csv (Primary: Test#*.csv)
 Worksheet: ThemeSub (Primary: ThemeConf)
+Merger: Merge1*.csv#*, Merge2*.csv#*, Test*.csv#ThemeSub*
 DataCellPos: B4
 DataCell: invalid
 Reason: "invalid" cannot be parsed to numerical type "uint64", strconv.ParseUint: parsing "invalid": invalid syntax
@@ -210,6 +214,7 @@ Help: fill cell data with valid syntax of numerical type "uint64"
 			wantText: `error[E2012]: invalid syntax of numerical value
 Workbook: Test#*.csv
 Worksheet: ThemeSub (Primary: ThemeConf)
+Merger: Merge1*.csv#*, Merge2*.csv#*, Test*.csv#ThemeSub*
 DataCellPos: B4
 DataCell: invalid
 Reason: "invalid" cannot be parsed to numerical type "uint64", strconv.ParseUint: parsing "invalid": invalid syntax
@@ -295,6 +300,7 @@ Help: fill cell data with valid syntax of numerical type "uint64"
 	const theme = `error[E2012]: invalid syntax of numerical value
 Workbook: Test#*.csv
 Worksheet: ThemeConf
+Merger: Merge1*.csv#*, Merge2*.csv#*, Test*.csv#ThemeSub*
 DataCellPos: B4
 DataCell: bad-theme
 Reason: "bad-theme" cannot be parsed to numerical type "uint64", strconv.ParseUint: parsing "bad-theme": invalid syntax

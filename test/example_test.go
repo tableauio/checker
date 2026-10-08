@@ -33,6 +33,7 @@ func Example_check() {
 	// error[E0005]: custom check failed
 	// Workbook: Test#*.csv
 	// Worksheet: Activity
+	// WorksheetAlias: ActivityConf
 	// Reason: awardId: 0 not found
 }
 
@@ -62,6 +63,7 @@ func Example_checkCompatibility() {
 	// error[E0005]: custom check failed
 	// Workbook: Test#*.csv
 	// Worksheet: Activity
+	// WorksheetAlias: ActivityConf
 	// Reason: ItemConf incompatible: 5 item id(s) removed in new version: [2 3 2001 2002 2003]
 }
 
