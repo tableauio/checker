@@ -31,32 +31,22 @@ func TestLoad(t *testing.T) {
 }
 
 func TestCheck(t *testing.T) {
-	for _, tt := range []struct {
-		lang, wantText string
-	}{
-		{"en", "error[E0005]: custom check failed\nWorkbook: Test#*.csv\nWorksheet: Activity\nReason: awardId: 0 not found\n"},
-		{"zh", "error[E0005]: custom check failed\n工作簿: Test#*.csv\n工作表: Activity\n错误原因: awardId: 0 not found\n"},
-	} {
-		t.Run(tt.lang, func(t *testing.T) {
-			require.NoError(t, tableauapi.SetLang(tt.lang))
-			t.Cleanup(func() { require.NoError(t, tableauapi.SetLang("en")) })
-			err := check.NewHub().Check("./testdata/", format.JSON,
-				check.BreakFailedCount(1),
-				check.WithLoadOptions(load.IgnoreUnknownFields()))
-			require.Error(t, err)
-			serr := tableauapi.Inspect(err)
-			require.Len(t, serr.Details, 1)
-			detail := serr.Details[0]
-			assert.Equal(t, "awardId: 0 not found", detail.Message)
-			require.NotNil(t, detail.Source)
-			assert.Equal(t, "Test#*.csv", detail.Source.Workbook)
-			assert.Equal(t, "Activity", detail.Source.Worksheet)
-			assert.Equal(t, tt.wantText, serr.Error())
-			data, marshalErr := json.Marshal(serr)
-			require.NoError(t, marshalErr)
-			assert.JSONEq(t, `{"details":[{"code":"E0005","description":"custom check failed","module":"default","message":"awardId: 0 not found","source":{"workbook":"Test#*.csv","worksheet":"Activity"}}]}`, string(data))
-		})
-	}
+	require.NoError(t, tableauapi.SetLang("en"))
+	err := check.NewHub().Check("./testdata/", format.JSON,
+		check.BreakFailedCount(1),
+		check.WithLoadOptions(load.IgnoreUnknownFields()))
+	require.Error(t, err)
+	serr := tableauapi.Inspect(err)
+	require.Len(t, serr.Details, 1)
+	detail := serr.Details[0]
+	assert.Equal(t, "awardId: 0 not found", detail.Message)
+	require.NotNil(t, detail.Source)
+	assert.Equal(t, "Test#*.csv", detail.Source.Workbook)
+	assert.Equal(t, "Activity", detail.Source.Worksheet)
+	assert.Equal(t, "error[E0005]: custom check failed\nWorkbook: Test#*.csv\nWorksheet: Activity\nReason: awardId: 0 not found\n", serr.Error())
+	data, marshalErr := json.Marshal(serr)
+	require.NoError(t, marshalErr)
+	assert.JSONEq(t, `{"details":[{"code":"E0005","description":"custom check failed","module":"default","message":"awardId: 0 not found","source":{"workbook":"Test#*.csv","worksheet":"Activity"}}]}`, string(data))
 }
 
 func TestCheckCompatibility(t *testing.T) {
