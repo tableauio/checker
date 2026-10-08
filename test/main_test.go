@@ -1,317 +1,311 @@
 package main
 
 import (
-	"errors"
-	"strings"
+	"encoding/json"
+	"fmt"
+	"os"
+	"path/filepath"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"github.com/tableauio/checker/test/check"
 	"github.com/tableauio/checker/test/protoconf/tableau"
+	tableauapi "github.com/tableauio/tableau"
 	"github.com/tableauio/tableau/format"
 	"github.com/tableauio/tableau/load"
 )
 
 func TestLoad(t *testing.T) {
-	run := func(ef check.ErrorFormat) error {
-		return check.NewHub().Check("./non-existent-dir/", format.JSON,
-			check.BreakFailedCount(10),
-			check.WithErrorFormat(ef),
-			check.WithLoadOptions(load.IgnoreUnknownFields()),
-		)
+	hub := check.NewHub(tableau.Filter(loadOriginFilter))
+	err := hub.Check("./non-existent-dir/", format.JSON,
+		check.BreakFailedCount(10),
+		check.WithLoadOptions(load.IgnoreUnknownFields()))
+	require.Error(t, err)
+	assert.Empty(t, hub.GetMessagerMap(), "failed loads must not be published")
+	serr := tableauapi.Inspect(err)
+	require.NotEmpty(t, serr.Details)
+	for _, detail := range serr.Details {
+		assert.Contains(t, detail.Message, "non-existent-dir")
 	}
-
-	t.Run("TextFormat", func(t *testing.T) {
-		err := run(check.ErrorFormatText)
-		require.Error(t, err)
-
-		var checkErr *check.Error
-		require.True(t, errors.As(err, &checkErr))
-		assert.Greater(t, len(checkErr.Issues), 0)
-		for _, issue := range checkErr.Issues {
-			assert.Equal(t, check.IssueKindLoad, issue.Kind)
-			assert.Contains(t, issue.Message, "load failed:")
-			assert.NotNil(t, issue.Workbook)
-			assert.NotNil(t, issue.Worksheet)
-			assert.NotEmpty(t, issue.Workbook.GetName())
-			assert.NotEmpty(t, issue.Worksheet.GetName())
-		}
-
-		errStr := err.Error()
-		assert.Contains(t, errStr, "error: workbook")
-		assert.Contains(t, errStr, "worksheet")
-		assert.Contains(t, errStr, "load failed:")
-		// Each issue should be on its own line in text format.
-		assert.Equal(t, len(checkErr.Issues), strings.Count(errStr, "error: workbook"))
-	})
-
-	t.Run("JSONFormat", func(t *testing.T) {
-		err := run(check.ErrorFormatJSON)
-		require.Error(t, err)
-
-		var checkErr *check.Error
-		require.True(t, errors.As(err, &checkErr))
-		assert.Greater(t, len(checkErr.Issues), 0)
-		for _, issue := range checkErr.Issues {
-			assert.Equal(t, check.IssueKindLoad, issue.Kind)
-			assert.Contains(t, issue.Message, "load failed:")
-		}
-
-		errStr := err.Error()
-		assert.Contains(t, errStr, `"issues"`)
-		assert.Contains(t, errStr, `"kind":"load"`)
-		assert.Contains(t, errStr, `"load failed:`)
-		assert.Contains(t, errStr, `"workbook":`)
-		assert.Contains(t, errStr, `"worksheet":`)
-	})
 }
 
 func TestCheck(t *testing.T) {
-	run := func(ef check.ErrorFormat) error {
-		return check.NewHub().Check("./testdata/", format.JSON,
-			check.BreakFailedCount(1),
-			check.WithErrorFormat(ef),
-			check.WithLoadOptions(load.IgnoreUnknownFields()),
-		)
-	}
-
-	t.Run("TextFormat", func(t *testing.T) {
-		err := run(check.ErrorFormatText)
-		require.Error(t, err)
-
-		var checkErr *check.Error
-		require.True(t, errors.As(err, &checkErr))
-		assert.Len(t, checkErr.Issues, 1)
-		issue := checkErr.Issues[0]
-		assert.Equal(t, check.IssueKindCheck, issue.Kind)
-		assert.Equal(t, "custom check failed: awardId: 0 not found", issue.Message)
-		assert.Equal(t, "Test#*.csv", issue.Workbook.GetName())
-		assert.Equal(t, "Activity", issue.Worksheet.GetName())
-
-		errStr := err.Error()
-		assert.Equal(t,
-			"error: workbook Test#*.csv, worksheet Activity, custom check failed: awardId: 0 not found",
-			errStr)
-	})
-
-	t.Run("JSONFormat", func(t *testing.T) {
-		err := run(check.ErrorFormatJSON)
-		require.Error(t, err)
-
-		var checkErr *check.Error
-		require.True(t, errors.As(err, &checkErr))
-		assert.Len(t, checkErr.Issues, 1)
-		assert.Equal(t, check.IssueKindCheck, checkErr.Issues[0].Kind)
-
-		// Workbook/Worksheet use protojson field names (camelCase).
-		assert.JSONEq(t, `{
-			"issues": [
-				{
-					"kind": "check",
-					"message": "custom check failed: awardId: 0 not found",
-					"workbook": {"name": "Test#*.csv"},
-					"worksheet": {
-						"name": "Activity",
-						"orderedMap": true,
-						"index": ["ChapterID", "ChapterName@NamedChapter", "SectionItemId@Award"]
-					}
-				}
-			]
-		}`, err.Error())
-	})
+	require.NoError(t, tableauapi.SetLang("en"))
+	err := check.NewHub().Check("./testdata/", format.JSON,
+		check.BreakFailedCount(1),
+		check.WithLoadOptions(load.IgnoreUnknownFields()))
+	require.Error(t, err)
+	serr := tableauapi.Inspect(err)
+	require.Len(t, serr.Details, 1)
+	detail := serr.Details[0]
+	assert.Equal(t, "awardId: 0 not found", detail.Message)
+	require.NotNil(t, detail.Source)
+	assert.Equal(t, "Test#*.csv", detail.Source.Workbook)
+	assert.Equal(t, "Activity", detail.Source.Worksheet)
+	assert.Equal(t, "error[E0005]: custom check failed\nWorkbook: Test#*.csv\nWorksheet: Activity (Alias: ActivityConf)\nReason: awardId: 0 not found\n", serr.Error())
+	data, marshalErr := json.Marshal(serr)
+	require.NoError(t, marshalErr)
+	assert.JSONEq(t, `{"details":[{"code":"E0005","description":"custom check failed","module":"default","message":"awardId: 0 not found","source":{"workbook":"Test#*.csv","worksheet":"Activity","worksheetAlias":"ActivityConf"}}]}`, string(data))
 }
 
 func TestCheckCompatibility(t *testing.T) {
-	run := func(ef check.ErrorFormat) error {
-		return check.NewHub().CheckCompatibility("./testdata/", "./testdata1/", format.JSON,
-			check.SkipLoadErrors(),
-			check.BreakFailedCount(10),
-			check.WithErrorFormat(ef),
-			check.WithLoadOptions(load.IgnoreUnknownFields()),
-		)
+	err := check.NewHub().CheckCompatibility("./testdata/", "./testdata1/", format.JSON,
+		check.SkipLoadErrors(), check.BreakFailedCount(10),
+		check.WithLoadOptions(load.IgnoreUnknownFields()))
+	require.Error(t, err)
+	serr := tableauapi.Inspect(err)
+	var loads, compatibility int
+	for _, detail := range serr.Details {
+		if detail.Code == "E0005" {
+			compatibility++
+			assert.Contains(t, detail.Message, "removed in new version:")
+		} else {
+			loads++
+		}
 	}
-
-	// classifyIssues groups issues by their kind for further inspection.
-	classifyIssues := func(issues []*check.Issue) map[check.IssueKind][]*check.Issue {
-		m := make(map[check.IssueKind][]*check.Issue)
-		for _, i := range issues {
-			m[i.Kind] = append(m[i.Kind], i)
-		}
-		return m
-	}
-
-	t.Run("TextFormat", func(t *testing.T) {
-		err := run(check.ErrorFormatText)
-		require.Error(t, err)
-
-		var checkErr *check.Error
-		require.True(t, errors.As(err, &checkErr))
-		assert.Greater(t, len(checkErr.Issues), 0)
-
-		grouped := classifyIssues(checkErr.Issues)
-		assert.NotEmpty(t, grouped[check.IssueKindLoad], "expected load issues")
-		assert.NotEmpty(t, grouped[check.IssueKindCompatibility], "expected compatibility issues")
-
-		// Every load issue must carry the expected message prefix and book/sheet info.
-		for _, issue := range grouped[check.IssueKindLoad] {
-			assert.Contains(t, issue.Message, "load failed:")
-			assert.NotEmpty(t, issue.Workbook.GetName())
-			assert.NotEmpty(t, issue.Worksheet.GetName())
-		}
-		// Every compatibility issue must carry the expected message prefix.
-		for _, issue := range grouped[check.IssueKindCompatibility] {
-			assert.Contains(t, issue.Message, "custom check failed:")
-		}
-
-		errStr := err.Error()
-		assert.Contains(t, errStr, "error: workbook Test#*.csv")
-		assert.Contains(t, errStr, "load failed:")
-		assert.Contains(t, errStr, "custom check failed:")
-		// ActivityConf's CheckCompatibility reports ItemConf entries that
-		// existed in the old snapshot but were removed in the new one.
-		assert.Contains(t, errStr, "ItemConf incompatible:")
-		assert.Contains(t, errStr, "removed in new version:")
-	})
-
-	t.Run("JSONFormat", func(t *testing.T) {
-		err := run(check.ErrorFormatJSON)
-		require.Error(t, err)
-
-		var checkErr *check.Error
-		require.True(t, errors.As(err, &checkErr))
-		assert.Greater(t, len(checkErr.Issues), 0)
-
-		grouped := classifyIssues(checkErr.Issues)
-		assert.NotEmpty(t, grouped[check.IssueKindLoad], "expected load issues")
-		assert.NotEmpty(t, grouped[check.IssueKindCompatibility], "expected compatibility issues")
-
-		// Note: cannot use assert.JSONEq here because the number of load issues
-		// depends on testdata files present, making the full JSON non-deterministic.
-		errStr := err.Error()
-		assert.Contains(t, errStr, `"issues"`)
-		assert.Contains(t, errStr, `"kind":"load"`)
-		assert.Contains(t, errStr, `"kind":"compatibility"`)
-		assert.Contains(t, errStr, `"load failed:`)
-		assert.Contains(t, errStr, `"custom check failed:`)
-		assert.Contains(t, errStr, `"workbook":`)
-		assert.Contains(t, errStr, `"worksheet":`)
-	})
+	assert.Positive(t, loads, "load failures must survive SkipLoadErrors")
+	assert.Positive(t, compatibility, "compatibility checks must still run")
 }
 
-// loadOriginAllowList limits Hub loading to messagers whose CSV layout is
-// trivial (single vertical map, no refer / merger / scatter), so that the
-// loadOrigin-from-CSV path can be exercised by testdata2/testdata3 without
-// pulling in the more complex ActivityConf / ThemeConf layouts.
-var loadOriginAllowList = map[string]bool{
-	"ItemConf":    true,
-	"ChapterConf": true,
-}
+var loadOriginAllowList = map[string]bool{"ItemConf": true, "ChapterConf": true}
 
-func loadOriginFilter(name string) bool {
-	return loadOriginAllowList[name]
-}
+func loadOriginFilter(name string) bool { return loadOriginAllowList[name] }
 
-// TestLoadOriginFromCSV verifies that the checker can drive tableau's
-// loadOrigin path against real CSV inputs.
-//
-// The allow-listed messagers (ItemConf + ChapterConf) belong to two
-// separate workbooks ("Item#*.csv" and "Test#*.csv") and use the
-// simplest possible layouts (single vertical map of scalars), so the
-// success scenario exercises the end-to-end CSV loading pipeline
-// without depending on cross-sheet refer / merger / scatter.
+// TestLoadOriginFromCSV verifies valid inputs load successfully and inspecting
+// failures yields one Tableau detail per invalid cell across two sheets.
 func TestLoadOriginFromCSV(t *testing.T) {
-	t.Run("Success", func(t *testing.T) {
-		err := check.NewHub(tableau.Filter(loadOriginFilter)).Check(
-			"./testdata2/", format.CSV,
-			check.BreakFailedCount(10),
-			check.WithErrorFormat(check.ErrorFormatText),
-		)
-		require.NoError(t, err, "expected loadOrigin from valid CSV inputs to succeed")
+	t.Run("success", func(t *testing.T) {
+		err := check.NewHub(tableau.Filter(loadOriginFilter)).Check("./testdata2/", format.CSV,
+			check.BreakFailedCount(10))
+		require.NoError(t, err)
 	})
-
-	// runFail loads testdata3/, where every allow-listed messager's CSV
-	// contains multiple cell-level errors. confgen's per-sheet child
-	// collector aggregates those errors into a single multi-line wrapped
-	// error per sheet, which the checker surfaces as one Issue per sheet.
-	//
-	// MaxErrorsPerSheet is bumped above the default fail-fast cap of 1
-	// so that loadOrigin's top-level collector lets confgen actually
-	// aggregate multiple row-level errors before bailing out.
-	runFail := func(t *testing.T, ef check.ErrorFormat) (*check.Error, string) {
-		t.Helper()
-		err := check.NewHub(tableau.Filter(loadOriginFilter)).Check(
-			"./testdata3/", format.CSV,
-			check.BreakFailedCount(10),
-			check.WithErrorFormat(ef),
-			check.WithLoadOptions(
-				load.MaxErrorsPerSheet(5),
-			),
-		)
-		require.Error(t, err)
-
-		var checkErr *check.Error
-		require.True(t, errors.As(err, &checkErr))
-		return checkErr, err.Error()
+	err := check.NewHub(tableau.Filter(loadOriginFilter)).Check("./testdata3/", format.CSV,
+		check.BreakFailedCount(10),
+		check.WithLoadOptions(load.MaxErrorsPerSheet(5)))
+	require.Error(t, err)
+	serr := tableauapi.Inspect(err)
+	counts := map[string]int{}
+	for _, detail := range serr.Details {
+		assert.NotContains(t, detail.Message, "[1] error")
+		require.NotNil(t, detail.Source)
+		require.NotNil(t, detail.Source.Cell)
+		assert.NotEmpty(t, detail.Source.Cell.Position)
+		counts[detail.Source.Worksheet]++
 	}
+	assert.GreaterOrEqual(t, counts["ItemConf"], 2)
+	assert.GreaterOrEqual(t, counts["ChapterConf"], 2)
+}
 
-	t.Run("Failure_TextFormat", func(t *testing.T) {
-		checkErr, errStr := runFail(t, check.ErrorFormatText)
+func TestLoadReferErrors(t *testing.T) {
+	require.NoError(t, tableauapi.SetLang("en"))
+	for _, tt := range []struct {
+		name     string
+		itemID   string
+		itemCSV  string
+		code     string
+		referred bool
+		wantText string
+	}{
+		{name: "valid value", itemID: "1", itemCSV: "ID\nuint32\nItem ID\n1\n"},
+		{
+			name: "missing value", itemID: "999", itemCSV: "ID\nuint32\nItem ID\n1\n", code: "E2002", referred: true,
+			wantText: `error[E2002]: field value not in referred space
+Workbook: Test#*.csv
+Worksheet: ThemeConf (Merger: [Merge1*.csv#*, Merge2*.csv#*, Test*.csv#ThemeSub*])
+ReferWorkbook: Item#*.csv
+ReferWorksheet: ItemConf
+DataCellPos: C4
+DataCell: 999
+Reason: value "999" not in referred space "ItemConf.ID"
+Help: correct value "999" or add it to one of the columns referenced by "ItemConf.ID"
+`,
+		},
+		{
+			name: "missing column", itemID: "1", itemCSV: "OtherID\nuint32\nItem ID\n1\n", code: "E2015", referred: true,
+			wantText: `error[E2015]: referred sheet column not found
+Workbook: Test#*.csv
+Worksheet: ThemeConf (Merger: [Merge1*.csv#*, Merge2*.csv#*, Test*.csv#ThemeSub*])
+ReferWorkbook: Item#*.csv
+ReferWorksheet: ItemConf
+DataCellPos: C4
+DataCell: 1
+Reason: referred sheet column "ID" not found in workbook "Item#*.csv", worksheet "ItemConf"
+Help: change "refer" prop or add referred sheet column "ID"
+`,
+		},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			dir := t.TempDir()
+			for name, content := range map[string]string{
+				"Test#ThemeConf.csv":   "Name,Value,ItemID\nstring,uint64,uint32\nName,Value,Item ID\nprimary,1," + tt.itemID + "\n",
+				"Merge1#ThemeConf.csv": "Name,Value\nstring,uint64\nName,Value\nmerge1,1\n",
+				"Merge2#ThemeConf.csv": "Name,Value\nstring,uint64\nName,Value\nmerge2,2\n",
+				"Item#ItemConf.csv":    tt.itemCSV,
+			} {
+				require.NoError(t, os.WriteFile(filepath.Join(dir, name), []byte(content), 0o600))
+			}
+			err := check.NewHub(tableau.Filter(func(name string) bool { return name == "ThemeConf" })).Check(dir, format.CSV)
+			if tt.code == "" {
+				require.NoError(t, err)
+				return
+			}
+			require.Error(t, err)
+			serr := tableauapi.Inspect(err)
+			require.Len(t, serr.Details, 1)
+			detail := serr.Details[0]
+			assert.Equal(t, tt.code, detail.Code)
+			require.NotNil(t, detail.Source)
+			assert.Equal(t, "Test#*.csv", detail.Source.Workbook)
+			assert.Equal(t, "ThemeConf", detail.Source.Worksheet)
+			assert.Equal(t, "Test#*.csv", detail.Source.PrimaryWorkbook)
+			assert.Equal(t, "ThemeConf", detail.Source.PrimaryWorksheet)
+			require.NotNil(t, detail.Source.Cell)
+			assert.Equal(t, "C4", detail.Source.Cell.Position)
+			assert.Equal(t, tt.itemID, detail.Source.Cell.Data)
+			require.NotNil(t, detail.Field)
+			assert.Equal(t, "protoconf.ThemeConf.Theme.item_id", detail.Field.Name)
+			if tt.referred {
+				assert.Equal(t, "Item#*.csv", detail.Source.ReferencedWorkbook)
+				assert.Equal(t, "ItemConf", detail.Source.ReferencedWorksheet)
+			}
+			assert.Equal(t, tt.wantText, serr.Error())
+		})
+	}
+}
 
-		// One issue per allow-listed messager (one CSV / sheet each).
-		assert.Len(t, checkErr.Issues, len(loadOriginAllowList),
-			"expected exactly one load issue per allow-listed messager")
+func TestLoadMergerSheetErrors(t *testing.T) {
+	require.NoError(t, tableauapi.SetLang("en"))
+	for _, tt := range []struct {
+		name      string
+		badFile   string
+		workbook  string
+		worksheet string
+		wantText  string
+	}{
+		{
+			name: "primary sheet", badFile: "Test#ThemeConf.csv", workbook: "Test#*.csv", worksheet: "ThemeConf",
+			wantText: `error[E2012]: invalid syntax of numerical value
+Workbook: Test#*.csv
+Worksheet: ThemeConf (Merger: [Merge1*.csv#*, Merge2*.csv#*, Test*.csv#ThemeSub*])
+DataCellPos: B4
+DataCell: invalid
+Reason: "invalid" cannot be parsed to numerical type "uint64", strconv.ParseUint: parsing "invalid": invalid syntax
+Help: fill cell data with valid syntax of numerical type "uint64"
+`,
+		},
+		{
+			name: "merger sub-sheet", badFile: "Merge1#ThemeSub.csv", workbook: "Merge1#*.csv", worksheet: "ThemeSub",
+			wantText: `error[E2012]: invalid syntax of numerical value
+Workbook: Merge1#*.csv (Primary: Test#*.csv)
+Worksheet: ThemeSub (Primary: ThemeConf, Merger: [Merge1*.csv#*, Merge2*.csv#*, Test*.csv#ThemeSub*])
+DataCellPos: B4
+DataCell: invalid
+Reason: "invalid" cannot be parsed to numerical type "uint64", strconv.ParseUint: parsing "invalid": invalid syntax
+Help: fill cell data with valid syntax of numerical type "uint64"
+`,
+		},
+		{
+			name: "primary workbook sub-sheet", badFile: "Test#ThemeSub.csv", workbook: "Test#*.csv", worksheet: "ThemeSub",
+			wantText: `error[E2012]: invalid syntax of numerical value
+Workbook: Test#*.csv
+Worksheet: ThemeSub (Primary: ThemeConf, Merger: [Merge1*.csv#*, Merge2*.csv#*, Test*.csv#ThemeSub*])
+DataCellPos: B4
+DataCell: invalid
+Reason: "invalid" cannot be parsed to numerical type "uint64", strconv.ParseUint: parsing "invalid": invalid syntax
+Help: fill cell data with valid syntax of numerical type "uint64"
+`,
+		},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			dir := t.TempDir()
+			for name, content := range map[string]string{
+				"Test#ThemeConf.csv":  "Name,Value\nstring,uint64\nName,Value\nprimary,1\n",
+				"Test#ThemeSub.csv":   "Name,Value\nstring,uint64\nName,Value\nsub,2\n",
+				"Merge1#ThemeSub.csv": "Name,Value\nstring,uint64\nName,Value\nmerge1,3\n",
+				"Merge2#ThemeSub.csv": "Name,Value\nstring,uint64\nName,Value\nmerge2,4\n",
+			} {
+				if name == tt.badFile {
+					content = "Name,Value\nstring,uint64\nName,Value\nbad,invalid\n"
+				}
+				require.NoError(t, os.WriteFile(filepath.Join(dir, name), []byte(content), 0o600))
+			}
+			err := check.NewHub(tableau.Filter(func(name string) bool { return name == "ThemeConf" })).Check(dir, format.CSV,
+				check.WithLoadOptions(load.MaxErrorsPerSheet(5)))
+			require.Error(t, err)
+			serr := tableauapi.Inspect(err)
+			require.Len(t, serr.Details, 1)
+			detail := serr.Details[0]
+			assert.Equal(t, "E2012", detail.Code)
+			require.NotNil(t, detail.Source)
+			assert.Equal(t, tt.workbook, detail.Source.Workbook)
+			assert.Equal(t, tt.worksheet, detail.Source.Worksheet)
+			assert.Equal(t, "Test#*.csv", detail.Source.PrimaryWorkbook)
+			assert.Equal(t, "ThemeConf", detail.Source.PrimaryWorksheet)
+			require.NotNil(t, detail.Source.Cell)
+			assert.Equal(t, "B4", detail.Source.Cell.Position)
+			assert.Equal(t, "invalid", detail.Source.Cell.Data)
+			assert.Equal(t, tt.wantText, serr.Error())
+			assert.Equal(t, tt.wantText, fmt.Sprint(serr))
+			data, marshalErr := json.Marshal(serr)
+			require.NoError(t, marshalErr)
+			var decoded tableauapi.Error
+			require.NoError(t, json.Unmarshal(data, &decoded))
+			require.Len(t, decoded.Details, 1)
+			assert.Equal(t, detail.Source, decoded.Details[0].Source)
+			assert.Equal(t, tt.wantText, decoded.Error())
+		})
+	}
+}
 
-		seen := map[string]bool{}
-		for _, issue := range checkErr.Issues {
-			assert.Equal(t, check.IssueKindLoad, issue.Kind)
-			assert.Contains(t, issue.Message, "load failed:")
-			assert.NotEmpty(t, issue.Workbook.GetName())
-			assert.NotEmpty(t, issue.Worksheet.GetName())
-			// Each sheet had >=2 cell-level errors → confgen aggregates them
-			// with [1], [2], ... prefixes inside the wrapped error message.
-			assert.Contains(t, issue.Message, "[1] error",
-				"expected first aggregated sub-error in %q", issue.Worksheet.GetName())
-			assert.Contains(t, issue.Message, "[2] error",
-				"expected second aggregated sub-error in %q", issue.Worksheet.GetName())
-			seen[issue.Worksheet.GetName()] = true
-		}
-		assert.True(t, seen["ItemConf"], "expected an issue for ItemConf")
-		assert.True(t, seen["ChapterConf"], "expected an issue for ChapterConf")
-
-		// Each issue is rendered on its own "error: workbook ..." line in
-		// text format. The aggregated multi-line load error sits inside
-		// the message portion, separated by '\n'.
-		assert.Equal(t, len(checkErr.Issues), strings.Count(errStr, "error: workbook"))
-		assert.Contains(t, errStr, "error: workbook Item#*.csv, worksheet ItemConf, load failed:")
-		assert.Contains(t, errStr, "error: workbook Test#*.csv, worksheet ChapterConf, load failed:")
-
-		t.Logf("\n----- TextFormat output (%d issues) -----\n%s\n----- end -----",
-			len(checkErr.Issues), errStr)
-	})
-
-	t.Run("Failure_JSONFormat", func(t *testing.T) {
-		checkErr, errStr := runFail(t, check.ErrorFormatJSON)
-
-		assert.Len(t, checkErr.Issues, len(loadOriginAllowList))
-
-		// JSON output must remain valid even when issue messages contain
-		// embedded newlines from the aggregated load error: every '\n'
-		// inside a "message" field has to be escaped as "\n".
-		assert.Contains(t, errStr, `"issues"`)
-		assert.Contains(t, errStr, `"kind":"load"`)
-		assert.Contains(t, errStr, `"load failed:`)
-		assert.Contains(t, errStr, `"workbook":`)
-		assert.Contains(t, errStr, `"worksheet":`)
-		// Aggregated sub-error markers (with newlines escaped).
-		assert.Contains(t, errStr, `[1] error`)
-		assert.Contains(t, errStr, `[2] error`)
-		// The top-level JSON object must be a single line: no raw newlines
-		// must leak into the rendered JSON document.
-		assert.NotContains(t, errStr, "\n",
-			"json output must not contain raw newlines")
-
-		t.Logf("\n----- JSONFormat output (%d issues) -----\n%s\n----- end -----",
-			len(checkErr.Issues), errStr)
-	})
+// TestLoadErrorText verifies one rendering flattens failures from separate loads.
+func TestLoadErrorText(t *testing.T) {
+	require.NoError(t, tableauapi.SetLang("en"))
+	dir := t.TempDir()
+	for name, content := range map[string]string{
+		"Test#ChapterConf.csv": "ID,Name\nuint64,string\nChapter ID,Chapter Name\nbad-first,first\nbad-second,second\n",
+		"Test#ThemeConf.csv":   "Name,Value\nstring,uint64\nName,Value\ntheme,bad-theme\n",
+		"Merge1#ThemeConf.csv": "Name,Value\nstring,uint64\nName,Value\nmerge1,1\n",
+		"Merge2#ThemeConf.csv": "Name,Value\nstring,uint64\nName,Value\nmerge2,2\n",
+	} {
+		require.NoError(t, os.WriteFile(filepath.Join(dir, name), []byte(content), 0o600))
+	}
+	err := check.NewHub(tableau.Filter(func(name string) bool {
+		return name == "ChapterConf" || name == "ThemeConf"
+	})).Check(dir, format.CSV, check.WithLoadOptions(load.MaxErrorsPerSheet(5)))
+	require.Error(t, err)
+	serr := tableauapi.Inspect(err)
+	require.Len(t, serr.Details, 3)
+	const chapterFirst = `error[E2012]: invalid syntax of numerical value
+Workbook: Test#*.csv
+Worksheet: ChapterConf
+DataCellPos: A4
+DataCell: bad-first
+Reason: "bad-first" cannot be parsed to numerical type "uint64", strconv.ParseUint: parsing "bad-first": invalid syntax
+Help: fill cell data with valid syntax of numerical type "uint64"
+`
+	const chapterSecond = `error[E2012]: invalid syntax of numerical value
+Workbook: Test#*.csv
+Worksheet: ChapterConf
+DataCellPos: A5
+DataCell: bad-second
+Reason: "bad-second" cannot be parsed to numerical type "uint64", strconv.ParseUint: parsing "bad-second": invalid syntax
+Help: fill cell data with valid syntax of numerical type "uint64"
+`
+	const theme = `error[E2012]: invalid syntax of numerical value
+Workbook: Test#*.csv
+Worksheet: ThemeConf (Merger: [Merge1*.csv#*, Merge2*.csv#*, Test*.csv#ThemeSub*])
+DataCellPos: B4
+DataCell: bad-theme
+Reason: "bad-theme" cannot be parsed to numerical type "uint64", strconv.ParseUint: parsing "bad-theme": invalid syntax
+Help: fill cell data with valid syntax of numerical type "uint64"
+`
+	// Workers may finish in either order; numbering spans the complete result.
+	wantText := "[1] " + chapterFirst + "\n[2] " + chapterSecond + "\n[3] " + theme
+	if serr.Details[0].Source.Worksheet == "ThemeConf" {
+		wantText = "[1] " + theme + "\n[2] " + chapterFirst + "\n[3] " + chapterSecond
+	}
+	assert.Equal(t, wantText, fmt.Sprint(serr))
+	assert.Equal(t, "check failed, see errors below:\n"+wantText,
+		fmt.Errorf("check failed, see errors below:\n%w", serr).Error())
 }

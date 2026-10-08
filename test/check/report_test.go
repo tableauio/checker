@@ -1,0 +1,103 @@
+package check
+
+import (
+	"errors"
+	"fmt"
+	"testing"
+
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
+	tableauapi "github.com/tableauio/tableau"
+	"github.com/tableauio/tableau/log"
+	"github.com/tableauio/tableau/log/core"
+	"github.com/tableauio/tableau/proto/tableaupb"
+)
+
+type recordingDriver struct {
+	messages []string
+}
+
+func (*recordingDriver) Name() string               { return "checker-report-test" }
+func (*recordingDriver) GetLevel(string) core.Level { return core.DebugLevel }
+func (d *recordingDriver) Print(record *core.Record) {
+	d.messages = append(d.messages, fmt.Sprintf(*record.Format, record.Args...))
+}
+
+// TestCustomErrorReport exercises the CLI reporting pattern with joined,
+// single, and previously inspected failures from different checkers.
+func TestCustomErrorReport(t *testing.T) {
+	require.NoError(t, tableauapi.SetLang("en"))
+	const wantText = `check failed, see errors below:
+[1] error[E0005]: custom check failed
+Workbook: conf/server/AITutorial.xlsx
+Worksheet: AITutorialConf
+Reason: 异人列表不能为空，教学配置ID: 10005
+
+[2] error[E0005]: custom check failed
+Workbook: conf/server/AITutorial.xlsx
+Worksheet: AITutorialConf
+Reason: 异人列表不能为空，教学配置ID: 10003
+
+[3] error[E0005]: custom check failed
+Workbook: conf/server/AITutorial.xlsx
+Worksheet: AITutorialConf
+Reason: 异人列表不能为空，教学配置ID: 10004
+
+[4] error[E0005]: custom check failed
+Workbook: conf/server/Pvp/Arena.xlsx
+Worksheet: CommonConf (Alias: ArenaCommonConf)
+Reason: MaxRecentCnt must be greater than 0
+
+[5] error[E0005]: custom check failed
+Workbook: conf/server/Task.xlsx
+Worksheet: TaskConfig (Alias: TaskConf)
+Reason: 任务集[赛季日常]中的任务[10100016]没配条件目标
+
+[6] error[E0005]: custom check failed
+Workbook: conf/server/Task.xlsx
+Worksheet: TaskConfig (Alias: TaskConf)
+Reason: 任务集[赛季日常]中的任务[10100015]没配条件目标
+`
+	driver := &recordingDriver{}
+	log.SetDriver(driver)
+	t.Cleanup(func() { log.SetDriver(nil) })
+
+	causes := []error{
+		errors.New("异人列表不能为空，教学配置ID: 10005"),
+		errors.New("异人列表不能为空，教学配置ID: 10003"),
+		errors.New("异人列表不能为空，教学配置ID: 10004"),
+		errors.New("MaxRecentCnt must be greater than 0"),
+		errors.New("任务集[赛季日常]中的任务[10100016]没配条件目标"),
+		errors.New("任务集[赛季日常]中的任务[10100015]没配条件目标"),
+	}
+	ai := tableauapi.WrapKV(errors.Join(causes[:3]...),
+		tableauapi.KeyBookName, "conf/server/AITutorial.xlsx", tableauapi.KeySheetName, "AITutorialConf")
+	arena := tableauapi.WrapKV(causes[3],
+		tableauapi.KeyBookName, "conf/server/Pvp/Arena.xlsx", tableauapi.KeySheetName, "CommonConf")
+	task := tableauapi.Inspect(tableauapi.WrapKV(errors.Join(causes[4:]...),
+		tableauapi.KeyBookName, "conf/server/Task.xlsx", tableauapi.KeySheetName, "TaskConfig"))
+	hub := NewHub()
+	hub.checkers = map[string]checker{
+		"AITutorialConf": &failingChecker{failure: ai, message: sourceMessage(t, "AITutorialConf",
+			&tableaupb.WorkbookOptions{Name: "conf/server/AITutorial.xlsx"}, &tableaupb.WorksheetOptions{Name: "AITutorialConf"})},
+		"ArenaCommonConf": &failingChecker{failure: arena, message: sourceMessage(t, "ArenaCommonConf",
+			&tableaupb.WorkbookOptions{Name: "conf/server/Pvp/Arena.xlsx"}, &tableaupb.WorksheetOptions{Name: "CommonConf"})},
+		"TaskConf": &failingChecker{failure: task, message: sourceMessage(t, "TaskConf",
+			&tableaupb.WorkbookOptions{Name: "conf/server/Task.xlsx"}, &tableaupb.WorksheetOptions{Name: "TaskConfig"})},
+	}
+	err := errors.Join(hub.check(0)...)
+	serr := tableauapi.Inspect(err)
+	require.Len(t, serr.Details, 6)
+	reported := fmt.Errorf("check failed, see errors below:\n%w", serr)
+	assert.Equal(t, wantText, reported.Error())
+	for i, cause := range causes {
+		require.ErrorIs(t, reported, cause)
+		assert.Equal(t, cause.Error(), serr.Details[i].Message)
+		assert.Equal(t, "E0005", serr.Details[i].Code)
+	}
+	assert.Equal(t, []string{
+		"=== RUN   AITutorialConf", "--- FAIL: AITutorialConf",
+		"=== RUN   ArenaCommonConf", "--- FAIL: ArenaCommonConf",
+		"=== RUN   TaskConf", "--- FAIL: TaskConf",
+	}, driver.messages, "progress logs must not repeat the detailed error report")
+}

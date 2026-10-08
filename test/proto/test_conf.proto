@@ -65,12 +65,14 @@ message ChapterConf {
 message ThemeConf {
   option (tableau.worksheet) = {
     name: "ThemeConf"
-    merger: "Merge1.xlsx#ThemeConf"
-    merger: "Merge2.xlsx#ThemeConf"
+    merger: "Merge1*.csv#*"
+    merger: "Merge2*.csv#*"
+    merger: "Test*.csv#ThemeSub*"
   };
   map<string, Theme> theme_map = 1 [(tableau.field) = { key: "Name" layout: LAYOUT_VERTICAL }];
   message Theme {
     string name = 2 [(tableau.field) = { name: "Name"}];
     uint64 value = 1 [(tableau.field) = { name: "Value"}];
+    uint32 item_id = 3 [(tableau.field) = { name: "ItemID" prop: { refer: "ItemConf.ID" optional: true } }];
   }
 }

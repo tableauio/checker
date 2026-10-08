@@ -8,11 +8,13 @@ package check
 import (
 	tableau "github.com/tableauio/checker/test/protoconf/tableau"
 
+	"errors"
 	"fmt"
 	"maps"
 	"slices"
 	"sync"
 
+	tableauapi "github.com/tableauio/tableau"
 	"github.com/tableauio/tableau/format"
 	"github.com/tableauio/tableau/load"
 	"github.com/tableauio/tableau/log"
@@ -79,127 +81,116 @@ const (
 // checkers to Hub.checkers when those checkers should drive subsequent Check /
 // CheckCompatibility runs. This avoids CheckCompatibility's second load from
 // silently overwriting the first load's checkers mid-flight.
-func (h *Hub) load(loadType, dir string, f format.Format, options ...load.Option) (map[string]checker, []*Issue) {
+func (h *Hub) load(loadType, dir string, f format.Format, options ...load.Option) (map[string]checker, []error) {
 	opts := load.ParseOptions(options...)
 	messagerMap := h.NewMessagerMap()
 	checkers := make(map[string]checker)
 
-	type loadResult struct {
-		name  string
-		msger tableau.Messager
-		issue *Issue
-	}
-	results := make(chan loadResult, len(messagerMap))
+	names := slices.Sorted(maps.Keys(messagerMap))
+	loadedMessagers := make(tableau.MessagerMap, len(names))
+	failures := make([]error, 0, len(names))
 	var wg sync.WaitGroup
-	for name, msger := range messagerMap {
+	var resultMu sync.Mutex
+	for _, name := range names {
+		msger := messagerMap[name]
 		if gen, ok := getRegistrar().Generators[name]; ok {
 			c := gen()
 			checkers[name] = c
 			msger = c.Messager()
 		}
 		wg.Add(1)
-		go func(name string, msger tableau.Messager) {
+		go func() {
 			defer wg.Done()
 			log.Infof("=== LOAD  %v%v", name, loadType)
 			mopts := opts.ParseMessagerOptionsByName(name)
 			if err := msger.Load(dir, f, mopts); err != nil {
-				workbook, worksheet := getBookAndSheet(msger)
 				log.Infof("--- FAIL: %v%v", name, loadType)
-				results <- loadResult{
-					name: name,
-					issue: &Issue{
-						Kind:      IssueKindLoad,
-						Message:   fmt.Sprintf("load failed: %s", err.Error()),
-						Workbook:  workbook,
-						Worksheet: worksheet,
-					},
-				}
+				failure := fmt.Errorf("load%s %s failed: %w", loadType, name, err)
+				resultMu.Lock()
+				failures = append(failures, failure)
+				resultMu.Unlock()
 				return
 			}
 			log.Infof("--- DONE: %v%v", name, loadType)
-			results <- loadResult{name: name, msger: msger}
-		}(name, msger)
+			resultMu.Lock()
+			loadedMessagers[name] = msger
+			resultMu.Unlock()
+		}()
 	}
-	go func() {
-		wg.Wait()
-		close(results)
-	}()
+	wg.Wait()
 
-	msgers := make(tableau.MessagerMap, len(messagerMap))
-	issues := make([]*Issue, 0, len(messagerMap))
-	for r := range results {
-		if r.issue != nil {
-			issues = append(issues, r.issue)
-			continue
-		}
-		msgers[r.name] = r.msger
-	}
-	h.SetMessagerMap(msgers)
+	h.SetMessagerMap(loadedMessagers)
 	// Align with tableau.Hub.Load: after all messagers are loaded, run
 	// ProcessAfterLoadAll so derived messagers (e.g. custom conf indexes) can build.
-	if len(issues) == 0 {
-		for _, name := range slices.Sorted(maps.Keys(msgers)) {
-			msger := msgers[name]
+	if len(failures) == 0 {
+		for _, name := range names {
+			msger := loadedMessagers[name]
 			if err := msger.ProcessAfterLoadAll(h.Hub); err != nil {
-				workbook, worksheet := getBookAndSheet(msger)
-				issues = append(issues, &Issue{
-					Kind:      IssueKindLoad,
-					Message:   fmt.Sprintf("process after load all failed: %s", err.Error()),
-					Workbook:  workbook,
-					Worksheet: worksheet,
-				})
+				failures = append(failures, wrapCheckError(err, msger))
 				log.Infof("--- FAIL: %v%v ProcessAfterLoadAll", name, loadType)
 			}
 		}
 	}
-	return checkers, issues
+	return checkers, failures
 }
 
-// getBookAndSheet resolves workbook/worksheet options from a messager's
-// underlying protobuf message descriptor. Returns nil, nil when the messager
-// has no message data (e.g. custom/derived messagers); missing extensions
-// also yield nil options.
-func getBookAndSheet(msger tableau.Messager) (*tableaupb.WorkbookOptions, *tableaupb.WorksheetOptions) {
-	if msger == nil {
-		return nil, nil
-	}
+// wrapCheckError classifies custom failures and adds schema source defaults.
+func wrapCheckError(err error, msger tableau.Messager) error {
+	err = tableauapi.E0005(err)
 	msg := msger.Message()
 	if msg == nil {
-		return nil, nil
+		return err
 	}
-	md := msg.ProtoReflect().Descriptor()
-	worksheet, _ := proto.GetExtension(md.Options(), tableaupb.E_Worksheet).(*tableaupb.WorksheetOptions)
-	workbook, _ := proto.GetExtension(md.ParentFile().Options(), tableaupb.E_Workbook).(*tableaupb.WorkbookOptions)
-	return workbook, worksheet
+	desc := msg.ProtoReflect().Descriptor()
+	workbook, _ := proto.GetExtension(desc.ParentFile().Options(), tableaupb.E_Workbook).(*tableaupb.WorkbookOptions)
+	worksheet, _ := proto.GetExtension(desc.Options(), tableaupb.E_Worksheet).(*tableaupb.WorksheetOptions)
+	var fields []any
+	if name := workbook.GetName(); name != "" {
+		fields = append(fields, tableauapi.KeyBookName, name)
+	}
+	if name := worksheet.GetName(); name != "" {
+		fields = append(fields, tableauapi.KeySheetName, name)
+	}
+	if alias := workbook.GetAlias(); alias != "" {
+		fields = append(fields, tableauapi.KeyBookAlias, alias)
+	}
+	if alias := string(desc.Name()); worksheet.GetName() != "" && alias != worksheet.GetName() {
+		fields = append(fields, tableauapi.KeySheetAlias, alias)
+	}
+	if merger := worksheet.GetMerger(); len(merger) != 0 {
+		fields = append(fields, tableauapi.KeyMerger, merger)
+	}
+	if scatter := worksheet.GetScatter(); len(scatter) != 0 {
+		fields = append(fields, tableauapi.KeyScatter, scatter)
+	}
+	if len(fields) == 0 {
+		return err
+	}
+	return tableauapi.WrapKV(err, fields...)
 }
 
-func (h *Hub) check(breakFailedCount int) []*Issue {
-	issues := make([]*Issue, 0, len(h.checkers))
+func (h *Hub) check(breakFailedCount int) []error {
+	failures := make([]error, 0, len(h.checkers))
 	for _, name := range slices.Sorted(maps.Keys(h.checkers)) {
 		checker := h.checkers[name]
 		log.Infof("=== RUN   %v", name)
 		err := checker.Check(h.Hub)
 		if err != nil {
-			workbook, worksheet := getBookAndSheet(checker)
-			log.Errorf("--- FAIL: workbook %s, worksheet %s", workbook.GetName(), worksheet.GetName())
-			issues = append(issues, &Issue{
-				Kind:      IssueKindCheck,
-				Message:   fmt.Sprintf("custom check failed: %+v", err),
-				Workbook:  workbook,
-				Worksheet: worksheet,
-			})
+			failure := wrapCheckError(err, checker)
+			log.Infof("--- FAIL: %v", name)
+			failures = append(failures, failure)
 		} else {
 			log.Infof("--- PASS: %v", name)
 		}
-		if breakFailedCount > 0 && len(issues) >= breakFailedCount {
+		if breakFailedCount > 0 && len(failures) >= breakFailedCount {
 			break
 		}
 	}
-	return issues
+	return failures
 }
 
-func (h *Hub) checkCompatibility(newHub *tableau.Hub, breakFailedCount int) []*Issue {
-	issues := make([]*Issue, 0, len(h.checkers))
+func (h *Hub) checkCompatibility(newHub *tableau.Hub, breakFailedCount int) []error {
+	failures := make([]error, 0, len(h.checkers))
 	for _, name := range slices.Sorted(maps.Keys(h.checkers)) {
 		checker := h.checkers[name]
 		if h.GetMessager(name) == nil || newHub.GetMessager(name) == nil {
@@ -209,60 +200,52 @@ func (h *Hub) checkCompatibility(newHub *tableau.Hub, breakFailedCount int) []*I
 		log.Infof("=== RUN   %v", name)
 		err := checker.CheckCompatibility(h.Hub, newHub)
 		if err != nil {
-			workbook, worksheet := getBookAndSheet(checker)
-			log.Errorf("--- FAIL: workbook %s, worksheet %s", workbook.GetName(), worksheet.GetName())
-			issues = append(issues, &Issue{
-				Kind:      IssueKindCompatibility,
-				Message:   fmt.Sprintf("custom check failed: %+v", err),
-				Workbook:  workbook,
-				Worksheet: worksheet,
-			})
+			failure := wrapCheckError(err, checker)
+			log.Infof("--- FAIL: %v", name)
+			failures = append(failures, failure)
 		} else {
 			log.Infof("--- PASS: %v", name)
 		}
-		if breakFailedCount > 0 && len(issues) >= breakFailedCount {
+		if breakFailedCount > 0 && len(failures) >= breakFailedCount {
 			break
 		}
 	}
-	return issues
+	return failures
 }
 
+// Check loads configs and runs custom checks, returning joined failures or nil.
+// Use tableau.Inspect on the result for structured details and reporting.
 func (h *Hub) Check(dir string, format format.Format, options ...Option) error {
 	opts := ParseOptions(options...)
-	checkers, loadIssues := h.load(loadTypeDefault, dir, format, opts.LoadOptions...)
-	if len(loadIssues) > 0 {
-		return &Error{Issues: loadIssues, format: opts.ErrorFormat}
+	checkers, loadErrors := h.load(loadTypeDefault, dir, format, opts.LoadOptions...)
+	if len(loadErrors) > 0 {
+		return errors.Join(loadErrors...)
 	}
 	h.checkers = checkers
-	checkIssues := h.check(opts.BreakFailedCount)
-	if len(checkIssues) > 0 {
-		return &Error{Issues: checkIssues, format: opts.ErrorFormat}
-	}
-	return nil
+	return errors.Join(h.check(opts.BreakFailedCount)...)
 }
 
+// CheckCompatibility compares two config snapshots, returning joined failures or nil.
+// Use tableau.Inspect on the result for structured details and reporting.
 func (h *Hub) CheckCompatibility(dir, newDir string, format format.Format, options ...Option) error {
 	opts := ParseOptions(options...)
 	// Load new config first; keep its messager map on newHub.
-	_, newLoadIssues := h.load(loadTypeNew, newDir, format, opts.LoadOptions...)
-	if len(newLoadIssues) > 0 && !opts.SkipLoadErrors {
-		return &Error{Issues: newLoadIssues, format: opts.ErrorFormat}
+	_, newLoadErrors := h.load(loadTypeNew, newDir, format, opts.LoadOptions...)
+	if len(newLoadErrors) > 0 && !opts.SkipLoadErrors {
+		return errors.Join(newLoadErrors...)
 	}
 	newHub := tableau.NewHub()
 	newHub.SetMessagerMap(h.GetMessagerMap())
 	// Load old config into this hub. Compatibility checkers must own the old
 	// messager data, so assign the old checkers explicitly after this load.
-	oldCheckers, oldLoadIssues := h.load(loadTypeOld, dir, format, opts.LoadOptions...)
-	if len(oldLoadIssues) > 0 && !opts.SkipLoadErrors {
-		return &Error{Issues: append(newLoadIssues, oldLoadIssues...), format: opts.ErrorFormat}
+	oldCheckers, oldLoadErrors := h.load(loadTypeOld, dir, format, opts.LoadOptions...)
+	loadErrors := append(newLoadErrors, oldLoadErrors...)
+	if len(oldLoadErrors) > 0 && !opts.SkipLoadErrors {
+		return errors.Join(loadErrors...)
 	}
 	h.checkers = oldCheckers
-	compatIssues := h.checkCompatibility(newHub, opts.BreakFailedCount)
-	allIssues := append(append(newLoadIssues, oldLoadIssues...), compatIssues...)
-	if len(allIssues) > 0 {
-		return &Error{Issues: allIssues, format: opts.ErrorFormat}
-	}
-	return nil
+	compatErrors := h.checkCompatibility(newHub, opts.BreakFailedCount)
+	return errors.Join(append(loadErrors, compatErrors...)...)
 }
 
 type Options struct {
@@ -271,8 +254,7 @@ type Options struct {
 	//
 	// Default: 1.
 	BreakFailedCount int
-	// Deprecated: ProtoPackage is unused. Workbook/worksheet metadata is
-	// resolved from each messager's protobuf descriptor.
+	// Deprecated: ProtoPackage is unused.
 	//
 	// Default: "protoconf".
 	ProtoPackage string
@@ -290,9 +272,6 @@ type Options struct {
 	//
 	// Default: nil.
 	LoadOptions []load.Option
-	// ErrorFormat controls how issues are formatted when the error is printed.
-	// Default: ErrorFormatText.
-	ErrorFormat ErrorFormat
 }
 
 // Option is the functional option type.
@@ -306,8 +285,7 @@ func BreakFailedCount(count int) Option {
 	}
 }
 
-// Deprecated: ProtoPackage is unused. Workbook/worksheet metadata is
-// resolved from each messager's protobuf descriptor.
+// Deprecated: ProtoPackage is unused.
 func ProtoPackage(protoPackage string) Option {
 	return func(opts *Options) {
 		opts.ProtoPackage = protoPackage
@@ -328,19 +306,11 @@ func WithLoadOptions(options ...load.Option) Option {
 	}
 }
 
-// WithErrorFormat sets the ErrorFormat used to print the returned error.
-func WithErrorFormat(f ErrorFormat) Option {
-	return func(opts *Options) {
-		opts.ErrorFormat = f
-	}
-}
-
 // newDefault returns a default Options.
 func newDefault() *Options {
 	return &Options{
 		BreakFailedCount: 1,
 		ProtoPackage:     "protoconf",
-		ErrorFormat:      ErrorFormatText,
 	}
 }
 

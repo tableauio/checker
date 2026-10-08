@@ -20,6 +20,18 @@ It has no `main` package, so `cd test && go run .` does **not** work.
 
 From the repo root:
 
+The structured error integration uses the public `github.com/tableauio/tableau` API from
+the Tableau revision pinned in `go.mod` ([companion PR](https://github.com/tableauio/tableau/pull/463)).
+Standalone builds use that dependency directly. To develop both repositories
+together, optionally use the sibling Tableau checkout:
+
+```bash
+go work init . ../tableau
+```
+
+The workspace files are local and ignored by Git. After the companion PR is
+merged, update the dependency to the merged revision or its next release.
+
 ```bash
 # 1) Regenerate *.pb.go, loader *.pc.go, and *.check.go under test/
 cd test && buf generate && cd ..
@@ -68,11 +80,70 @@ Common options:
 | `loader-pkg` | `tableau` | Loader package name under each file’s Go import path     |
 | `out`        | _(empty)_ | Existing checker output dir used for incremental updates |
 
+## Structured errors
+
+`Check` and `CheckCompatibility` return joined error chains on failure and nil
+on success. Import `github.com/tableauio/tableau`.
+Call `tableau.Inspect(err)` when reporting an error to obtain its
+flat `Details` list. Tableau load errors already contain their source metadata,
+including actual and primary workbooks, worksheets, and failing cells. Checker
+preserves those details. Custom check, compatibility, and post-load failures
+retain their original messages and carry the workbook and worksheet declared
+by their protobuf schema. Source details also retain workbook/worksheet aliases
+and configured merger/scatter sheet specifiers in text and JSON. Text appends
+these settings to the workbook/worksheet lines as parenthesized key-value pairs.
+These schema settings describe possible inputs; precise failing shard/cell locations remain
+separate. Existing source details
+take precedence; custom messagers without a protobuf source retain plain errors.
+Failure limits count failed messagers, independently of detail count.
+
+Progress logs identify each failed messager on one line. Detailed errors are
+rendered once by the caller. Custom failures use Tableau code `E0005`
+(`custom check failed`) and retain their original message as the reason. Existing
+specific Tableau codes take precedence; aggregate numbering spans all failures.
+
+Use `errors.New` or `fmt.Errorf` for custom failures. When a failure belongs to
+a more specific workbook or sheet, attach its source with `tableau.WrapKV`:
+
+```go
+return tableau.WrapKV(fmt.Errorf("task %d has no condition target", taskID),
+    tableau.KeyBookName, workbookName,
+    tableau.KeySheetName, sheetName)
+```
+
+Checker supplies the schema workbook and worksheet when those fields are absent.
+`WrapKV` captures its caller's stack if the error does not already have one.
+
+Print the inspected error for Tableau's localized text, or marshal it for the
+flat `{ "details": [...] }` JSON representation. Original causes remain
+reachable through `errors.As` and `errors.Is` before and after inspection.
+
+```go
+if err := hub.Check(dir, format.JSON); err != nil {
+    serr := tableau.Inspect(err)
+    fmt.Print(serr)
+    // For JSON output, use json.Marshal(serr).
+}
+```
+
+Inspect the complete `Check` or `CheckCompatibility` result once at the reporting
+boundary. Printing the raw joined error includes checker operation wrappers and
+can restart numbering inside each load failure. Inspecting it produces Tableau's
+flat, consistently numbered output, including reference and source metadata.
+
+For a CLI that returns an error for its framework to print:
+
+```go
+if err := hub.Check(dir, format.CSV); err != nil {
+    return fmt.Errorf("check failed, see errors below:\n%w", tableau.Inspect(err))
+}
+```
+
 ## Layout
 
 | Path                                 | Role                                                     |
 | ------------------------------------ | -------------------------------------------------------- |
-| `cmd/protoc-gen-go-tableau-checker/` | Plugin source + embedded `hub` / `error` templates       |
+| `cmd/protoc-gen-go-tableau-checker/` | Plugin source + embedded hub template                   |
 | `test/proto/`                        | Sample Tableau workbooks (`.proto`)                      |
 | `test/protoconf/`                    | Generated `*.pb.go` + loader `*.pc.go`                   |
 | `test/check/`                        | Generated / hand-edited `*.check.go` hub and checkers    |

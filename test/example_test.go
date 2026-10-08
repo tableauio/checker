@@ -6,6 +6,7 @@ import (
 	"github.com/tableauio/checker/test/check"
 	"github.com/tableauio/checker/test/customconf"
 	"github.com/tableauio/checker/test/protoconf/tableau"
+	tableauapi "github.com/tableauio/tableau"
 	"github.com/tableauio/tableau/format"
 	"github.com/tableauio/tableau/load"
 )
@@ -14,8 +15,8 @@ import (
 // generated config outputs (JSON in this case) and surface a single,
 // deterministic custom-check failure as a text-formatted error.
 //
-// BreakFailedCount(1) caps the run at the first issue so the example output
-// stays stable regardless of how many other issues exist in the data set.
+// BreakFailedCount(1) caps the run at the first failed messager so the example output
+// stays stable regardless of how many other failures exist in the data set.
 // CustomItemConf is registered via test/customconf and participates in load /
 // ProcessAfterLoadAll (hence the "custom item conf processed" line).
 func Example_check() {
@@ -25,22 +26,21 @@ func Example_check() {
 		check.WithLoadOptions(load.IgnoreUnknownFields()),
 	)
 	if err != nil {
-		fmt.Println(err)
+		fmt.Println(tableauapi.Inspect(err))
 	}
 	// Output:
 	// custom item conf processed
-	// error: workbook Test#*.csv, worksheet Activity, custom check failed: awardId: 0 not found
+	// error[E0005]: custom check failed
+	// Workbook: Test#*.csv
+	// Worksheet: Activity (Alias: ActivityConf)
+	// Reason: awardId: 0 not found
 }
 
 // Example_checkCompatibility demonstrates how to compare two snapshots of
 // generated config outputs for compatibility regressions.
 //
-// To keep the example output deterministic, the Filter narrows the run to
-// the messagers whose error messages are stable single-liners (ItemConf as
-// the dependency + ActivityConf as the consumer that runs the custom
-// CheckCompatibility). This avoids pulling in messagers like ThemeConf
-// whose load errors include a multi-line file excerpt that would clutter
-// the example.
+// The Filter selects ItemConf and its consumer ActivityConf so the example
+// demonstrates a deterministic custom compatibility failure.
 //
 // The custom compatibility check on ActivityConf reports any ItemConf entry
 // that existed in the old snapshot but disappears in the new one.
@@ -57,9 +57,12 @@ func Example_checkCompatibility() {
 		fmt.Println("compatible")
 		return
 	}
-	fmt.Println(err)
+	fmt.Println(tableauapi.Inspect(err))
 	// Output:
-	// error: workbook Test#*.csv, worksheet Activity, custom check failed: ItemConf incompatible: 5 item id(s) removed in new version: [2 3 2001 2002 2003]
+	// error[E0005]: custom check failed
+	// Workbook: Test#*.csv
+	// Worksheet: Activity (Alias: ActivityConf)
+	// Reason: ItemConf incompatible: 5 item id(s) removed in new version: [2 3 2001 2002 2003]
 }
 
 // Example_customConf shows reading a derived messager after Check. The hub
